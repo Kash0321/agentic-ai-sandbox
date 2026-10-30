@@ -82,7 +82,8 @@ Este proyecto usa [OpenSpec](https://github.com/Fission-AI/OpenSpec) (spec-drive
 - Durante la implementación, ve marcando las tareas de `tasks.md`; no marques como hecho lo que no esté probado.
 - Tras el despliegue/merge, archiva con `openspec archive <id>`, solo cuando el usuario lo pida.
 - Correcciones de bugs que restauran el comportamiento ya especificado, typos y cambios de formato no necesitan change.
-- `openspec/` se gestiona con la CLI; no edites a mano la estructura generada salvo `project.md`, specs y changes. Si `openspec init` añade un bloque gestionado a este fichero, no lo modifiques.
+- `openspec/` se gestiona con la CLI; no edites a mano la estructura generada salvo `openspec/config.yaml`, specs y changes. Los skills y comandos generados (`.claude/`, `.agents/`) se regeneran con `openspec update`; no los edites a mano.
+- En Claude Code el flujo se invoca con `/opsx:propose`, `/opsx:apply`, `/opsx:archive` y `/opsx:explore`. En otros asistentes, con los skills `openspec-*` de `.agents/skills/`.
 - Una fase de `docs/plan.md` = uno o varios changes. Las decisiones de diseño van en `design.md` del change o en `docs/adr/` si trascienden un único change.
 
 ## 7. Flujo de trabajo para asistentes

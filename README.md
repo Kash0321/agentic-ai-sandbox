@@ -119,9 +119,9 @@ Configuración por defecto (`appsettings.json`):
 
 El desarrollo sigue *spec-driven development* con [OpenSpec](https://github.com/Fission-AI/OpenSpec): ningún cambio de comportamiento se implementa sin una propuesta y unas especificaciones previas.
 
-1. **Proponer**: crear un *change* (`openspec new change <nombre>`) en `openspec/changes/<nombre>/` con `proposal.md`, `tasks.md` y los *spec deltas* (requisitos y escenarios).
+1. **Proponer**: crear un *change* (en Claude Code, `/opsx:propose "idea"`; por CLI, `openspec new change <nombre>`) en `openspec/changes/<nombre>/` con `proposal.md`, `tasks.md` y los *spec deltas* (requisitos y escenarios).
 2. **Validar**: `openspec validate <nombre> --strict`.
-3. **Implementar**: ejecutar las tareas de `tasks.md` y marcarlas al completarlas.
+3. **Implementar** (`/opsx:apply`): ejecutar las tareas de `tasks.md` y marcarlas al completarlas.
 4. **Archivar**: `openspec archive <nombre>` fusiona los deltas en `openspec/specs/`, que pasa a ser la fuente de verdad del comportamiento actual.
 
 Comandos útiles: `openspec list`, `openspec list --specs`, `openspec show <item>`.
@@ -139,7 +139,7 @@ agentic-ai-sandbox/
 ├── global.json                    # Fija el SDK de .NET 10
 ├── AgenticSandbox.slnx
 ├── openspec/
-│   ├── project.md                 # Contexto y convenciones del proyecto
+│   ├── config.yaml                # Esquema y contexto del proyecto para OpenSpec
 │   ├── specs/                     # Especificaciones vigentes (fuente de verdad)
 │   └── changes/                   # Propuestas en curso (+ archive/)
 ├── docs/

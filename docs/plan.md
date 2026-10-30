@@ -3,7 +3,7 @@
 | Fase | Nombre | Entregables | Criterio de salida |
 |------|--------|-------------|--------------------|
 | 0 | Bootstrap y documentación | `README.md`, `AGENTS.md`, este plan, `.gitignore` | Docs revisados y aprobados |
-| 1 | Setup de solución | `openspec init` + `openspec/project.md` (contexto, stack y convenciones), `global.json` (.NET 10), `Directory.Build.props` (nullable, warnings as errors), `Directory.Packages.props`, `.slnx`, proyectos vacíos, CI mínima (build + test) | `dotnet build` y `dotnet test` verdes |
+| 1 | Setup de solución | `openspec init` + `openspec/config.yaml` (contexto y reglas por artefacto), `global.json` (.NET 10), `Directory.Build.props` (nullable, warnings as errors), `Directory.Packages.props`, `.slnx`, proyectos vacíos, CI mínima (build + test) | `dotnet build` y `dotnet test` verdes |
 | 2 | Infraestructura base | Host de consola, DI, configuración (User Secrets), logging, `IChatClient` hacia DeepSeek (`Microsoft.Extensions.AI.OpenAI` con endpoint personalizado), cliente falso para tests | "Hola mundo" contra DeepSeek y test equivalente con cliente falso |
 | 3 | Servicios dummy | Dominio (Order, Customer, Inventory), servicios in-memory, Commands/Queries, inyector de fallos configurable | Tests de dominio, incluidos fallos y transiciones inválidas |
 | 4 | Pipeline agéntico | Tools (`AIFunction`) con `ToolResult<T>`, `UseFunctionInvocation`, Runner, system prompt, trazas | Escenario feliz end-to-end (p. ej. crear pedido) |

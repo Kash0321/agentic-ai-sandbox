@@ -1,0 +1,38 @@
+schema: spec-driven
+
+context: |
+  Sandbox de arquitectura agéntica en .NET 10 (PoC), no un ERP de producción.
+  El LLM es DeepSeek (API compatible con OpenAI) vía Microsoft.Extensions.AI (IChatClient).
+  El dominio es dummy e in-memory: simula reglas de negocio, validaciones, fallos inducidos y cambios de estado.
+  Fuera de alcance: bases de datos reales, integración con ERP/CRM reales, autenticación de usuarios, UI, despliegue.
+  Escribe todos los artefactos (proposal, design, specs, tasks) en español.
+  Mantén en inglés los identificadores de código, los nombres de tools y los códigos de error (p. ej. ORDER_NOT_FOUND).
+  Las reglas de negocio se especifican y validan en el dominio, nunca en prompts. El LLM propone, el dominio decide.
+  Todo lo que no sea la llamada al LLM debe ser determinista y verificable con un IChatClient falso, sin red ni API key.
+  Las convenciones de código y las reglas de diseño están en AGENTS.md; no las dupliques en los artefactos.
+
+rules:
+  proposal:
+    - Indica explícitamente qué queda fuera de alcance
+    - Referencia la fase de docs/plan.md a la que pertenece el change
+  specs:
+    - Cada requisito usa SHALL o MUST y lleva al menos un escenario Given/When/Then
+    - Los contratos de tools especifican nombre, parámetros, resultado y códigos de error estables
+    - Los errores de negocio se devuelven como ToolResult con ToolError; ninguna tool lanza excepciones hacia el LLM
+    - Los guardrails se especifican con el código de bloqueo que devuelven (p. ej. BLOCKED_BY_POLICY)
+  design:
+    - Justifica las decisiones que afecten a la separación entre dominio e invocación del LLM
+    - Si la decisión trasciende un único change, indícalo para registrarla como ADR en docs/adr/
+  tasks:
+    - Divide en tareas pequeñas y verificables
+    - Incluye siempre las tareas de tests (caso feliz, cada código de error y schema de las tools)
+    - Cierra con dotnet build sin warnings y dotnet test en verde
+
+operations:
+  apply:
+    guidance:
+      - No marques una tarea como completada si no está probada
+      - Ejecuta dotnet build y dotnet test antes de dar el change por terminado
+  archive:
+    guidance:
+      - Archiva solo cuando el usuario lo pida
