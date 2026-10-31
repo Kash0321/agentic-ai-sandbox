@@ -99,6 +99,44 @@ Factores a tener en cuenta:
 
 **Decisión del proyecto**: flujo **híbrido**. `dotnet` local para iterar rápido y el contenedor como referencia para dar algo por terminado y para la CI. El flujo "solo contenedor" es un **experimento acotado en la fase 1**.
 
+### Equipo de desarrollo actual y sus límites
+
+Medido el 2026-10-31, **una sola vez** y con Docker Desktop recién arrancado y en reposo (sin construir nada). Son datos de este equipo, no una regla general.
+
+| Dato | Valor |
+|------|-------|
+| Equipo | Surface Go 2, Intel Core m3-8100Y (2 núcleos, 4 hilos, 1,1 GHz base, sin ventilador) |
+| RAM | 8 GB (unos 8.062 MB visibles) |
+| Disco | SSD de 254 GB, unos 159 GB libres |
+| Sistema | Windows 11 Business (edición Professional), build 26200 |
+| Software instalado | Docker Desktop 4.97.0, motor 29.9.2, Compose v5.6.1, WSL2 |
+| RAM libre antes de instalar | ~1,4 GB |
+| RAM libre con Docker en reposo | ~0,5 GB |
+| Coste de Docker en reposo | ~2,8 GB (`vmmemWSL` ~2,1 GB; Docker Desktop y sus procesos ~0,7 GB) |
+
+Configuración de WSL2 aplicada (`%UserProfile%\.wslconfig`), basada en los parámetros documentados por Microsoft:
+
+```ini
+[wsl2]
+memory=3GB
+processors=2
+swap=4GB
+
+[experimental]
+autoMemoryReclaim=gradual
+sparseVhd=true
+```
+
+Por defecto, WSL2 reservaría el 50 % de la RAM (unos 4 GB aquí) y todos los procesadores lógicos, según la documentación de Microsoft.
+
+Consecuencias para el flujo de trabajo:
+
+- **Docker no se deja arrancado.** Al terminar se sale de Docker Desktop y se ejecuta `wsl --shutdown`, que devuelve la memoria. El arranque automático de Docker Desktop debe estar desactivado en sus ajustes.
+- **Desarrollo diario nativo con `dotnet`.** Docker se usa para construir la imagen y verificar antes de dar algo por terminado.
+- **La CI es la referencia real** sobre el mismo `Dockerfile`: los runners de GitHub no gastan RAM local.
+- **El experimento de velocidad se mide en otro equipo.** En este, la medición reflejaría el límite de memoria y la CPU de bajo consumo, no el coste de usar contenedores. Si se mide aquí de todas formas, se anota como tal.
+- Con la RAM tan justa, un `docker build` con VS Code y el navegador abiertos puede provocar paginación a disco. **(No medido todavía.)** Se medirá en la fase 1 al construir la primera imagen real.
+
 ### Experimento (fase 1): resultados por rellenar
 
 Medir en el equipo de desarrollo, tres repeticiones cada una:
