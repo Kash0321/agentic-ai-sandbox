@@ -105,7 +105,9 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
   - `test` y `openspec` quedan en verde.
 
   Revertido en `79f15f4`, sin diferencias con `d69e433`.
-- [ ] 3.5 Comprobar el escenario "PR que solo cambia documentación": un commit del propio change que solo toque Markdown dispara los tres checks.
+- [x] 3.5 Comprobar el escenario "PR que solo cambia documentación": un commit del propio change que solo toque Markdown dispara los tres checks.
+
+  **Hecho**: el commit `b522923` solo modifica ficheros `.md` y dispara `test`, `image` y `openspec`, los tres en verde (run 41226191089, evento `pull_request`).
 
 ## 4. Workflow manual de medición
 
@@ -195,12 +197,20 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
 
 ## 8. Integración y cierre
 
-- [ ] 8.1 Validar y cerrar:
+- [x] 8.1 Validar y cerrar:
   - `openspec validate --all --strict` sin errores, en local y en el check `openspec`;
   - `dotnet build` sin advertencias y `dotnet test` en verde en local;
   - `docker build --target test .` en verde en local y en el check `test`;
   - los tres checks en verde en el último commit del PR;
   - revisión de que ningún fichero versionado contiene secretos ni rutas locales, y de que ningún workflow usa `secrets.`.
+
+  **Hecho el 2026-10-31**:
+  - `openspec validate --all --strict`: 4 de 4, en local y en el check `openspec`;
+  - `dotnet build`: 0 advertencias y 0 errores;
+  - `dotnet test`: 8 tests en verde;
+  - `docker build --target test .` en local: código 0 (el paso de tests sale de la caché porque no cambió nada desde la última ejecución en verde);
+  - en el PR #13, los tres checks en verde en `b522923` (run 41226191089), el último commit con código;
+  - la búsqueda de claves, tokens, `secrets.` y rutas locales solo encuentra menciones en la documentación del propio change.
 
 ## Workflow follow-up
 
