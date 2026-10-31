@@ -45,3 +45,18 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **Tool** | Herramienta que el agente puede invocar; en .NET, una `AIFunction` |
 | **ToolResult / ToolError** | Resultado tipado de una tool y su error determinista, en lugar de excepciones |
 | **Trifecta letal** | Combinación peligrosa: datos privados, contenido no confiable y canal de comunicación hacia fuera |
+| **Aspire Dashboard** | Panel de desarrollo que recibe telemetría OTLP (trazas, métricas, logs); existe como contenedor autónomo |
+| **Bind mount** | Carpeta del anfitrión compartida con un contenedor; en Windows puede ser lenta con muchos ficheros pequeños |
+| **Capa (de imagen)** | Resultado de una instrucción del `Dockerfile`; se cachea y reutiliza si no cambia |
+| **Chiseled** | Imagen mínima de Ubuntu para .NET, sin shell ni gestor de paquetes y con usuario no root |
+| **Compose** | Fichero que define servicios, redes, volúmenes y secretos de una aplicación multicontenedor |
+| **Contenedor** | Ejecución aislada de una imagen, con su propio proceso, red y sistema de ficheros |
+| **Dev container** | Entorno de desarrollo completo definido como contenedor (especificación abierta, usada por VS Code y Codespaces) |
+| **Digest** | Identificador inmutable (`sha256`) de una imagen; permite fijar exactamente qué se usa |
+| **Dockerfile** | Receta para construir una imagen de contenedor |
+| **Imagen (de contenedor)** | Plantilla inmutable, formada por capas, a partir de la que se crea un contenedor |
+| **Multi-etapa (build)** | Varias etapas en un `Dockerfile`; solo la última forma la imagen final |
+| **OTLP** | OpenTelemetry Protocol, formato estándar para enviar trazas, métricas y logs |
+| **Rootless / no root** | Contenedor que corre con un usuario sin privilegios |
+| **Volumen** | Almacenamiento que gestiona el motor de contenedores, independiente del sistema de ficheros del anfitrión |
+| **WSL2** | Subsistema de Windows para Linux; base habitual de Docker Desktop en Windows |

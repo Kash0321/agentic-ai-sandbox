@@ -104,7 +104,7 @@ Este proyecto es un laboratorio cuyo objetivo incluye que su responsable **apren
 
 - Trabaja por fases según `docs/plan.md`; no adelantes fases sin que se pida.
 - Cambios pequeños y revisables; un cambio = un propósito.
-- Antes de dar algo por terminado: `dotnet build` sin warnings y `dotnet test` en verde. Si no puedes ejecutarlo, dilo.
+- Antes de dar algo por terminado: `dotnet build` sin warnings y `dotnet test` en verde y, en cuanto exista el `Dockerfile`, también `docker build --target test` (ver sección 10). Si no puedes ejecutarlo, dilo.
 - Las decisiones de arquitectura no triviales se documentan en `docs/adr/`.
 - Si una instrucción entra en conflicto con este documento, pregunta antes de actuar.
 - No hagas commits, push ni cambios en CI sin petición explícita.
@@ -121,3 +121,21 @@ Este proyecto es un laboratorio cuyo objetivo incluye que su responsable **apren
 - **Merge**: lo hace el usuario, preferiblemente con *squash* para mantener un historial lineal. No fusiones un PR sin que el usuario lo pida expresamente.
 - **Tras el merge**: se borra la rama y se actualiza `main` en local antes de empezar el siguiente cambio.
 - **Archivado en OpenSpec**: `openspec archive` se ejecuta en una rama propia (o en la misma del change, antes del merge) cuando el usuario lo pida.
+
+## 10. Contenedores
+
+Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. El detalle y las razones están en `docs/learn/07-contenedores-en-sistemas-agenticos.md`.
+
+- **Flujo híbrido**: `dotnet` local para iterar rápido; el contenedor es la referencia para dar algo por terminado y la base de la CI. Si algo funciona en local y falla en el contenedor, el contenedor manda.
+- **`Dockerfile` multi-etapa**, en este orden: `restore` (solo ficheros de dependencias, para cachear), `build`, `test`, `publish` y `final`. La etapa `test` no necesita red: los tests usan un `IChatClient` falso.
+- **Imágenes base**: fijadas por tag explícito (nunca `latest`) y, cuando sea posible, por digest. Imagen final basada en el runtime, no en el SDK.
+- **Usuario no root** en la imagen final. Sistema de ficheros de solo lectura, `cap_drop: ALL` y `no-new-privileges` en compose salvo motivo justificado.
+- **Secretos**: nunca en la imagen, en `ARG`, en `ENV` del `Dockerfile`, en compose ni en ficheros versionados. La API key se pasa con un secreto por fichero (`secrets/`, ignorado por Git) o, como alternativa simple, por variable de entorno en tiempo de ejecución. Solo se versiona `.env.example`. El repositorio es público.
+- **`.dockerignore` estricto** (`bin/`, `obj/`, `.git`, `secrets/`, `.env`, etc.).
+- **Fin de línea**: `.gitattributes` fuerza `eol=lf` en `Dockerfile`, scripts y YAML, para evitar `/bin/sh^M` en Linux.
+- **Compose**: el servicio `runner` es *one-shot* (`docker compose run --rm runner --scenario <id>`). El panel de trazas OTLP (Aspire Dashboard) es un perfil opcional y solo para desarrollo.
+- **Motor**: compatible con Docker y Podman; evita funciones exclusivas de uno solo.
+- **CI**: construye el mismo `Dockerfile`, con permisos mínimos y acciones fijadas por SHA. Su check es obligatorio en el ruleset de `main` cuando exista.
+- **Datos**: nunca se montan datos reales en un contenedor; solo datos sintéticos.
+- **Un contenedor no es un guardrail**: no sustituye a la autorización ni a las políticas de las secciones 4 y 5.
+- Los cambios en el `Dockerfile` o en compose siguen el flujo normal (change de OpenSpec, rama y PR) y actualizan `docs/learn/07-contenedores-en-sistemas-agenticos.md` con lo aprendido.
