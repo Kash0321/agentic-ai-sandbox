@@ -58,12 +58,12 @@ Antes de proponer se hicieron experimentos el 2026-10-31, fuera del repo, en el 
 
 Lectura: tras un cambio de código, el contenedor tarda ×1,24 lo que tarda el nativo, y el nativo estaba penalizado por la memoria que ocupaba Docker. Los 4,3 s del caso "sin cambios" no se pueden comparar con el nativo: Docker no ejecuta los tests si nada cambió, mientras que `dotnet test` siempre los ejecuta.
 
-**Suposiciones sin verificar todavía** (se comprueban en las tareas):
+**Suposiciones sin verificar al proponer** (se comprueban en las tareas; resultado del apply, 2026-10-31):
 
-- Que pedir `CultureInfo` `es-ES` con `PredefinedCulturesOnly` lance `CultureNotFoundException`.
-- Que el escenario "olvidar un `.csproj` en el `restore`" falle con un mensaje que identifique el proyecto.
-- Que un test en rojo haga fallar `docker build --target test` con el nombre del test en la salida.
-- El comportamiento con Podman.
+- Que pedir `CultureInfo` `es-ES` con `PredefinedCulturesOnly` lance `CultureNotFoundException`. **Confirmado** en la tarea 2.2, en Windows y en el contenedor Linux.
+- Que el escenario "olvidar un `.csproj` en el `restore`" falle con un mensaje que identifique el proyecto. **Confirmado** en la tarea 3.4: `MSB3202` con la ruta del proyecto que falta.
+- Que un test en rojo haga fallar `docker build --target test` con el nombre del test en la salida. **Confirmado** en la tarea 3.4.
+- El comportamiento con Podman. **Sigue sin verificar**: Podman no está instalado.
 
 ## Goals / Non-Goals
 
@@ -154,7 +154,7 @@ Motivo: la imagen *chiseled* ya corre en modo invariante (variable de entorno de
 ### D7. Compose: `compose.yaml` con un `runner` endurecido, sin red ni secretos
 
 - **Nombre `compose.yaml`**, el canónico según Docker. El `README.md` y el plan mencionaban `docker-compose.yml` y se corrigen.
-- **Servicio `runner`**: construye la etapa `final` del `Dockerfile` y etiqueta la imagen con un nombre local estable. Se usa con `docker compose run --rm runner`.
+- **Servicio `runner`**: construye la etapa `final` del `Dockerfile` y etiqueta la imagen con un nombre local estable. Se usa con `docker compose run --build --rm runner`: en el apply se observó que, sin `--build`, compose reutiliza la imagen ya construida aunque el código haya cambiado. `docker compose run --rm runner` sigue cumpliendo los escenarios de la spec, pero puede ejecutar una imagen desfasada.
 - **Endurecimiento** como atributos del servicio: `read_only: true`, `cap_drop: [ALL]`, `security_opt: ["no-new-privileges:true"]`, `mem_limit: 256m`, `cpus: 1.0` y `network_mode: none`. Todos se probaron en el experimento.
   - Se usan `mem_limit`/`cpus` en lugar de `deploy.resources` porque son los que se probaron con `compose run`.
   - Los valores son de partida: el Runner actual no hace nada, y la fase 2 los revisará con carga real.
