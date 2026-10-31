@@ -1,0 +1,103 @@
+# CI de cada pull request y de main. Sus tres jobs son los checks obligatorios del ruleset
+# protect-main: no renombrarlos sin actualizar .github/rulesets/protect-main.json.
+# Sin filtros de ruta a propósito: un check obligatorio que no se publica deja el PR bloqueado.
+# Acciones fijadas por SHA (versión en el comentario; verificadas el 2026-10-31).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build and run tests (docker build --target test)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: test
+          push: false
+          cache-from: type=gha,scope=test
+          cache-to: type=gha,scope=test,mode=max
+
+  image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build final image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: final
+          push: false
+          load: true
+          tags: agentic-sandbox-runner:ci
+          cache-from: type=gha,scope=image
+          cache-to: type=gha,scope=image,mode=max
+
+      # Mismas restricciones que el servicio runner de compose.yaml
+      - name: Run the image once (hardened)
+        run: >-
+          docker run --rm --read-only --cap-drop ALL
+          --security-opt no-new-privileges --network none
+          --memory 256m --cpus 1
+          agentic-sandbox-runner:ci
+
+      # Informe completo: only-fixed ocultaría las vulnerabilidades sin arreglo
+      - name: Report all vulnerabilities
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: agentic-sandbox-runner:ci
+          grype-version: v0.121.0
+          fail-build: false
+          output-format: table
+
+      # Política del ADR 0002: falla solo con severidad alta o crítica y arreglo disponible
+      - name: Fail on high or critical vulnerabilities with a fix
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: agentic-sandbox-runner:ci
+          grype-version: v0.121.0
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          output-format: table
+
+  openspec:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the OpenSpec CLI image
+        run: docker build --tag openspec-cli tools/openspec
+
+      - name: Validate specs and changes (strict)
+        run: >-
+          docker run --rm --network none
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          openspec-cli validate --all --strict

@@ -1,0 +1,57 @@
+# Medición manual del coste de trabajar en contenedor frente a nativo, en el mismo runner.
+# Solo se lanza a petición (workflow_dispatch): no es un check ni se ejecuta en los PR.
+# Mismos escenarios que la tabla del documento 07. Una ejecución es una sola medición.
+name: measure
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Measure native and container builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          results=()
+          measure() {
+            local label="$1"; shift
+            local start elapsed
+            start=$(date +%s%N)
+            "$@" > /dev/null
+            elapsed=$(( ($(date +%s%N) - start) / 100000000 ))
+            results+=("| $label | $((elapsed / 10)),$((elapsed % 10)) |")
+          }
+          # El cambio de código solo existe en el runner; nunca se commitea
+          touch_code() { echo "// measure $(date +%s%N)" >> src/Sandbox.Runner/Program.cs; }
+
+          measure "Descarga de las imágenes base" bash -c \
+            "grep -oE '^FROM [^ ]+@sha256:[0-9a-f]+' Dockerfile | cut -d' ' -f2 | xargs -n1 docker pull -q"
+          measure "dotnet test nativo en frío (con restore)" dotnet test --solution AgenticSandbox.slnx
+          touch_code
+          measure "dotnet test nativo tras cambiar un .cs" dotnet test --solution AgenticSandbox.slnx
+          git checkout -- src/Sandbox.Runner/Program.cs
+          measure "docker build --target test en frío (--no-cache)" docker build --no-cache --target test --quiet .
+          touch_code
+          measure "docker build --target test tras cambiar un .cs" docker build --target test --quiet .
+          git checkout -- src/Sandbox.Runner/Program.cs
+
+          {
+            echo "## Nativo frente a contenedor"
+            echo
+            echo "Runner: imagen ${ImageOS:-?} ${ImageVersion:-?}, $(nproc) CPU, $(free -g | awk '/^Mem:/ {print $2}') GB de RAM."
+            echo "SDK: $(dotnet --version); Docker: $(docker version --format '{{.Server.Version}}')."
+            echo
+            echo "| Escenario | Segundos |"
+            echo "|---|---|"
+            printf '%s\n' "${results[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
