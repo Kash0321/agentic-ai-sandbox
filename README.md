@@ -72,7 +72,7 @@ Versión ASCII:
 ## Requisitos previos
 
 - Un motor de contenedores: [Docker](https://www.docker.com/products/docker-desktop) o [Podman](https://podman.io/). Es la referencia para construir, probar y ejecutar (previsto desde la fase 1).
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) para el ciclo de desarrollo local rápido.
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) (10.0.100 o posterior) para el ciclo de desarrollo local rápido. `dotnet test` usa Microsoft.Testing.Platform, que se configura en `global.json`.
 - Una **API key de DeepSeek** ([platform.deepseek.com](https://platform.deepseek.com))
 - [Node.js](https://nodejs.org) (LTS) y [OpenSpec](https://github.com/Fission-AI/OpenSpec) para el flujo de trabajo guiado por especificaciones:
 

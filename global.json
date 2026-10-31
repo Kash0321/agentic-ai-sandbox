@@ -1,0 +1,11 @@
+{
+  "sdk": {
+    "version": "10.0.100",
+    "rollForward": "latestFeature",
+    "allowPrerelease": false,
+    "errorMessage": "Este proyecto necesita el SDK de .NET 10 (10.0.100 o posterior): https://dotnet.microsoft.com/download/dotnet/10.0"
+  },
+  "test": {
+    "runner": "Microsoft.Testing.Platform"
+  }
+}

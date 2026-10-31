@@ -1,0 +1,28 @@
+# Salida de compilación y pruebas
+bin/
+obj/
+artifacts/
+TestResults/
+
+# Editores e IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# Registros
+*.log
+
+# Secretos y entorno local (el repositorio es público)
+secrets/
+.env
+.env.*
+!.env.example
+
+# Configuración local del asistente (los skills y comandos generados SÍ se versionan)
+.claude/settings.local.json
+
+# Ficheros del sistema operativo
+Thumbs.db
+desktop.ini
+.DS_Store

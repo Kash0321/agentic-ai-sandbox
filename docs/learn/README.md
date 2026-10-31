@@ -15,6 +15,7 @@ Orden recomendado para empezar:
 | 5 | [Guardrails](05-guardrails.md) | ¿Qué son y qué patrones existen para implementarlos? |
 | 6 | [Autenticación y autorización de agentes](06-autenticacion-y-autorizacion.md) | ¿Cómo se hace de forma segura con datos sensibles? |
 | 7 | [Contenedores en sistemas agénticos](07-contenedores-en-sistemas-agenticos.md) | ¿Cómo y por qué se contenerizan el build, los tests y la ejecución? ¿Cuánto cuesta? |
+| 8 | [Estructura y estándares de la solución .NET](08-estructura-y-estandares-de-la-solucion-dotnet.md) | ¿Cómo se estructura la solución, qué se ignora en Git, cómo se fija el SDK y cómo se prueban las reglas de capas? |
 | - | [Glosario](glosario.md) | Vocabulario del proyecto. |
 
 ## Convenciones de estos documentos
@@ -33,7 +34,7 @@ Cada *change* de OpenSpec incluye una tarea de documentación de aprendizaje (ve
 | Fase | Documentación de aprendizaje |
 |------|------------------------------|
 | 0 | Los siete documentos base y el glosario (esta carpeta) |
-| 1 | Actualizar 07 con el resultado del experimento de velocidad (nativo frente a contenedor) y lo aprendido con el `Dockerfile` y la CI |
+| 1 | Nuevo: 08 (estructura y estándares de la solución .NET). Actualizar 07 con el resultado del experimento de velocidad (nativo frente a contenedor) y lo aprendido con el `Dockerfile` y la CI |
 | 2 | Actualizar 04 con lo aprendido al conectar DeepSeek con `IChatClient` (endpoint personalizado, límites reales); actualizar 07 con la gestión real del secreto en contenedor |
 | 3 | Nuevo: *Diseño de dominios aptos para agentes* (idempotencia, máquinas de estado, errores deterministas) |
 | 4 | Actualizar 02 y 03 con trazas reales del bucle; nuevo: *Diseño de tools para LLMs* |
@@ -60,3 +61,5 @@ Lista viva de temas candidatos. Cuando uno se aborde, se convierte en documento 
 | **Modelos de razonamiento frente a modelos de chat** | Cuándo compensa pagar más latencia por razonar | Fase 2 |
 | **Cumplimiento y gobierno** (RGPD, AI Act, auditoría, residencia de datos) | Determina si un sistema agéntico puede usarse con datos reales | Fase 7 |
 | **Fiabilidad** (timeouts, reintentos, fallback entre modelos, circuit breaker) | Un proveedor externo falla y el agente debe degradar con elegancia | Fase 5 |
+| **Seguridad de la cadena de suministro** (auditoría de NuGet, *package source mapping*, archivos de bloqueo, Dependabot, SBOM) | El repositorio es público y depende de paquetes de terceros; con warnings como errores, una vulnerabilidad nueva puede romper el build | Fase 1 (CI) |
+| **Builds reproducibles** (SDK y paquetes fijados, builds deterministas, mismo resultado en local, contenedor y CI) | Es el fundamento de poder fiarse de que "en verde" significa lo mismo en todas partes | Fase 1 (contenedor y CI) |

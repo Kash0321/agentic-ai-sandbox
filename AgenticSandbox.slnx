@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sandbox.Agents/Sandbox.Agents.csproj" />
+    <Project Path="src/Sandbox.Application/Sandbox.Application.csproj" />
+    <Project Path="src/Sandbox.Domain/Sandbox.Domain.csproj" />
+    <Project Path="src/Sandbox.Runner/Sandbox.Runner.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sandbox.Agents.Tests/Sandbox.Agents.Tests.csproj" />
+    <Project Path="tests/Sandbox.Domain.Tests/Sandbox.Domain.Tests.csproj" />
+    <Project Path="tests/Sandbox.Scenarios.Tests/Sandbox.Scenarios.Tests.csproj" />
+  </Folder>
+</Solution>

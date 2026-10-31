@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Sandbox.Agents\Sandbox.Agents.csproj" />
+    <ProjectReference Include="..\..\src\Sandbox.Application\Sandbox.Application.csproj" />
+    <ProjectReference Include="..\..\src\Sandbox.Domain\Sandbox.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
