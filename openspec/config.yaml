@@ -26,6 +26,7 @@ rules:
   design:
     - Justifica las decisiones que afecten a la separación entre dominio e invocación del LLM
     - Si la decisión trasciende un único change, indícalo para registrarla como ADR en docs/adr/
+    - Si el change partió de un explore, recoge los experimentos realizados y sus resultados observados, distinguiéndolos de las suposiciones (AGENTS.md, sección 6)
   tasks:
     - Divide en tareas pequeñas y verificables
     - Incluye siempre las tareas de tests (caso feliz, cada código de error y schema de las tools)
