@@ -14,6 +14,7 @@ Orden recomendado para empezar:
 | 4 | [Herramientas de Microsoft](04-herramientas-microsoft.md) | ¿Qué problema resuelve cada librería y cuál usamos? Incluye referencia. |
 | 5 | [Guardrails](05-guardrails.md) | ¿Qué son y qué patrones existen para implementarlos? |
 | 6 | [Autenticación y autorización de agentes](06-autenticacion-y-autorizacion.md) | ¿Cómo se hace de forma segura con datos sensibles? |
+| 7 | [Contenedores en sistemas agénticos](07-contenedores-en-sistemas-agenticos.md) | ¿Cómo y por qué se contenerizan el build, los tests y la ejecución? ¿Cuánto cuesta? |
 | - | [Glosario](glosario.md) | Vocabulario del proyecto. |
 
 ## Convenciones de estos documentos
@@ -31,8 +32,9 @@ Cada *change* de OpenSpec incluye una tarea de documentación de aprendizaje (ve
 
 | Fase | Documentación de aprendizaje |
 |------|------------------------------|
-| 0 | Los seis documentos base y el glosario (esta carpeta) |
-| 2 | Actualizar 04 con lo aprendido al conectar DeepSeek con `IChatClient` (endpoint personalizado, límites reales) |
+| 0 | Los siete documentos base y el glosario (esta carpeta) |
+| 1 | Actualizar 07 con el resultado del experimento de velocidad (nativo frente a contenedor) y lo aprendido con el `Dockerfile` y la CI |
+| 2 | Actualizar 04 con lo aprendido al conectar DeepSeek con `IChatClient` (endpoint personalizado, límites reales); actualizar 07 con la gestión real del secreto en contenedor |
 | 3 | Nuevo: *Diseño de dominios aptos para agentes* (idempotencia, máquinas de estado, errores deterministas) |
 | 4 | Actualizar 02 y 03 con trazas reales del bucle; nuevo: *Diseño de tools para LLMs* |
 | 5 | Actualizar 05 y 06 con los guardrails implementados y el modelo de identidad simulado |

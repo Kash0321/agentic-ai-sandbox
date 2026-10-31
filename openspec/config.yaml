@@ -11,6 +11,7 @@ context: |
   Todo lo que no sea la llamada al LLM debe ser determinista y verificable con un IChatClient falso, sin red ni API key.
   Las convenciones de código y las reglas de diseño están en AGENTS.md; no las dupliques en los artefactos.
   El proyecto tiene un objetivo de aprendizaje: la documentación de docs/learn/ se escribe en paralelo al código y todo change debe actualizarla.
+  El proyecto se construye, prueba y ejecuta también en contenedor (Dockerfile multi-etapa, usuario no root, secretos por fichero, nunca en la imagen); ver AGENTS.md sección 10. El repositorio es público y open source (MIT).
 
 rules:
   proposal:
@@ -29,6 +30,7 @@ rules:
     - Divide en tareas pequeñas y verificables
     - Incluye siempre las tareas de tests (caso feliz, cada código de error y schema de las tools)
     - Incluye siempre una tarea de documentación de aprendizaje en docs/learn/ (crear o actualizar el documento, con lo observado en la práctica, y ampliar el glosario)
+    - Si el change afecta a build, dependencias, configuración o ejecución, incluye su comprobación en contenedor (docker build --target test) y la revisión de que no se filtran secretos a la imagen
     - Cierra con dotnet build sin warnings y dotnet test en verde
 
 operations:

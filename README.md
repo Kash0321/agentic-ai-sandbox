@@ -71,7 +71,8 @@ Versión ASCII:
 
 ## Requisitos previos
 
-- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- Un motor de contenedores: [Docker](https://www.docker.com/products/docker-desktop) o [Podman](https://podman.io/). Es la referencia para construir, probar y ejecutar (previsto desde la fase 1).
+- [.NET 10 SDK](https://dotnet.microsoft.com/download) para el ciclo de desarrollo local rápido.
 - Una **API key de DeepSeek** ([platform.deepseek.com](https://platform.deepseek.com))
 - [Node.js](https://nodejs.org) (LTS) y [OpenSpec](https://github.com/Fission-AI/OpenSpec) para el flujo de trabajo guiado por especificaciones:
 
@@ -115,6 +116,21 @@ Configuración por defecto (`appsettings.json`):
 
 > Los endpoints y modelos disponibles pueden cambiar; consulta la documentación oficial de DeepSeek. Verifica el soporte de *function calling* del modelo elegido antes de usarlo en un escenario.
 
+## Ejecución con contenedores (prevista desde la fase 1)
+
+Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. El flujo es **híbrido**: `dotnet` local para iterar rápido y el contenedor como referencia y base de la CI. Los comandos siguientes se podrán usar cuando exista el `Dockerfile`:
+
+```bash
+# Tests dentro del contenedor (sin red ni API key)
+docker build --target test .
+
+# Imagen final y ejecución de un escenario
+docker compose build
+docker compose run --rm runner --scenario create-order
+```
+
+La API key se pasa como secreto por fichero (`secrets/deepseek_api_key`, ignorado por Git), nunca dentro de la imagen. Detalle y razones en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](docs/learn/07-contenedores-en-sistemas-agenticos.md).
+
 ## Documentación de aprendizaje
 
 Este laboratorio sirve también para **aprender** los conceptos que valida. La carpeta [`docs/learn/`](docs/learn/README.md) es el cuaderno de estudio y crece en paralelo al código:
@@ -125,6 +141,7 @@ Este laboratorio sirve también para **aprender** los conceptos que valida. La c
 - [Herramientas de Microsoft](docs/learn/04-herramientas-microsoft.md), con tabla de referencia.
 - [Guardrails](docs/learn/05-guardrails.md) y patrones de implementación.
 - [Autenticación y autorización de agentes](docs/learn/06-autenticacion-y-autorizacion.md) con datos sensibles.
+- [Contenedores en sistemas agénticos](docs/learn/07-contenedores-en-sistemas-agenticos.md): diseño, secretos, endurecimiento y coste.
 - [Glosario](docs/learn/glosario.md)
 
 ## Flujo de trabajo con OpenSpec
@@ -154,6 +171,13 @@ agentic-ai-sandbox/
 ├── Directory.Packages.props       # Central Package Management
 ├── global.json                    # Fija el SDK de .NET 10
 ├── AgenticSandbox.slnx
+├── Dockerfile                     # Multi-etapa: restore, build, test, publish, final
+├── docker-compose.yml             # Servicio runner y perfil opcional de trazas
+├── .dockerignore
+├── .gitattributes                 # eol=lf para Dockerfile, scripts y YAML
+├── .env.example                   # Plantilla sin secretos
+├── secrets/                       # Secretos locales (ignorado por Git)
+├── .github/workflows/ci.yml       # CI sobre el mismo Dockerfile
 ├── openspec/
 │   ├── config.yaml                # Esquema y contexto del proyecto para OpenSpec
 │   ├── specs/                     # Especificaciones vigentes (fuente de verdad)

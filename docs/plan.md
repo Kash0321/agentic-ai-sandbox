@@ -3,17 +3,27 @@
 | Fase | Nombre | Entregables | Criterio de salida |
 |------|--------|-------------|--------------------|
 | 0 | Bootstrap y documentación | `README.md`, `AGENTS.md`, este plan, `.gitignore`, documentación de aprendizaje base (`docs/learn/`) | Docs revisados y aprobados |
-| 1 | Setup de solución | `openspec init` + `openspec/config.yaml` (contexto y reglas por artefacto), `global.json` (.NET 10), `Directory.Build.props` (nullable, warnings as errors), `Directory.Packages.props`, `.slnx`, proyectos vacíos, CI mínima (build + test) | `dotnet build` y `dotnet test` verdes |
-| 2 | Infraestructura base | Host de consola, DI, configuración (User Secrets), logging, `IChatClient` hacia DeepSeek (`Microsoft.Extensions.AI.OpenAI` con endpoint personalizado), cliente falso para tests | "Hola mundo" contra DeepSeek y test equivalente con cliente falso |
+| 1 | Setup de solución | `openspec init` + `openspec/config.yaml` (contexto y reglas por artefacto), `global.json` (.NET 10), `Directory.Build.props` (nullable, warnings as errors), `Directory.Packages.props`, `.slnx`, proyectos vacíos, `.gitattributes` (`eol=lf`), `Dockerfile` multi-etapa (restore, build, test, publish y runtime sin root), `.dockerignore`, `docker-compose.yml`, CI sobre el mismo `Dockerfile` (build y test en contenedor), medición nativo frente a contenedor | `dotnet build` y `dotnet test` verdes, `docker build --target test` verde en CI y check de CI exigido en el ruleset de `main` |
+| 2 | Infraestructura base | Host de consola, DI, configuración (User Secrets), logging, `IChatClient` hacia DeepSeek (`Microsoft.Extensions.AI.OpenAI` con endpoint personalizado), cliente falso para tests | "Hola mundo" contra DeepSeek, también dentro del contenedor con la API key como secreto por fichero, y test equivalente con cliente falso |
 | 3 | Servicios dummy | Dominio (Order, Customer, Inventory), servicios in-memory, Commands/Queries, inyector de fallos configurable | Tests de dominio, incluidos fallos y transiciones inválidas |
 | 4 | Pipeline agéntico | Tools (`AIFunction`) con `ToolResult<T>`, `UseFunctionInvocation`, Runner, system prompt, trazas | Escenario feliz end-to-end (p. ej. crear pedido) |
-| 5 | Guardrails | Middleware: límites de iteraciones/tokens, allow-list, autorización, confirmación humana, auditoría | Cada guardrail con tests; acciones bloqueadas devuelven error tipado |
+| 5 | Guardrails | Middleware: límites de iteraciones/tokens, allow-list, autorización, confirmación humana, auditoría, panel de trazas OTLP opcional (Aspire Dashboard como perfil de compose) | Cada guardrail con tests; acciones bloqueadas devuelven error tipado |
 | 6 | Casos de prueba y escenarios | Escenarios deterministas (fallo de stock, pedido inexistente, prompt injection, reintentos, acción destructiva) + suite opcional contra DeepSeek real | Matriz de escenarios documentada y ejecutable |
-| 7 | Evaluación y cierre | Informe de hallazgos, ADRs, lista de patrones validados y descartados | Conclusiones de la PoC documentadas |
+| 7 | Evaluación y cierre | Informe de hallazgos (incluidos tamaño de imagen, endurecimiento y resultado del experimento de contenedores), ADRs, lista de patrones validados y descartados | Conclusiones de la PoC documentadas |
 
 ## Metodología
 
 Desde la fase 1, cada fase se ejecuta con OpenSpec: uno o varios *changes* (`openspec/changes/<id>/`) con propuesta, tareas y spec deltas, validados con `openspec validate --strict` y archivados al completarse. Las fases 3 a 5 deben especificar como requisitos con escenarios los servicios de dominio, los contratos de las tools y los guardrails; los escenarios de la fase 6 se derivan de ellos.
+
+## Contenedores
+
+Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. Decisiones:
+
+- **Flujo híbrido**: `dotnet` local para iterar rápido; el contenedor es la referencia para dar algo por terminado y la base de la CI. Un flujo "solo contenedor" se evalúa como experimento acotado en la fase 1 (medición documentada en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](learn/07-contenedores-en-sistemas-agenticos.md)).
+- **`Dockerfile` explícito** multi-etapa, con etapa `test` sin red, usuario no root e imágenes fijadas. La vía de contenedores del SDK queda como comparación posible.
+- **Secretos** por fichero montado, nunca en la imagen ni versionados.
+- **Motor**: Docker o Podman (se evitan funciones exclusivas de uno solo). Instalarlo es un prerrequisito de la fase 1.
+- Fuera de alcance de momento: dev container y servicios adicionales distintos del panel de trazas.
 
 ## Documentación de aprendizaje paralela
 
@@ -29,3 +39,4 @@ Este laboratorio busca también **aprender** los conceptos que valida. Por eso l
 - Soporte y calidad del *function calling* según el modelo de DeepSeek elegido.
 - No determinismo del LLM: las pruebas críticas deben usar cliente falso.
 - Coste y latencia: límites de iteraciones y tokens desde la fase 2.
+- El equipo de desarrollo no tiene motor de contenedores ni WSL2 habilitado: hay que resolverlo (y revisar la política de licencias de la organización) antes de la fase 1. La CI puede validar la imagen mientras tanto.
