@@ -78,7 +78,7 @@ Alternativa descartada: un único job que lo haga todo. Construye una sola vez, 
 - **`actions/checkout` con `persist-credentials: false`**: el token no queda guardado en `.git/config` para los pasos siguientes.
 - **Solo `pull_request`, nunca `pull_request_target`**: con `pull_request`, un PR de un fork se ejecuta con token de solo lectura y sin secretos. `pull_request_target` ejecuta en el contexto del repositorio base y es la vía clásica de robo de secretos.
 - **Acciones por SHA completo** con `# vX.Y.Z` al lado, y el ajuste `sha_pinning_required` activado en el repositorio (D8). Las cuatro acciones son `node24` sin acciones anidadas, así que el ajuste no rompe nada por esa vía.
-- **Sin secretos**: ningún job usa `secrets.*`. La caché de BuildKit (`type=gha`) usa el token interno del runner, no el `GITHUB_TOKEN`. Que funcione con `contents: read` está **(no verificado)** y se comprueba en las tareas.
+- **Sin secretos**: ningún job usa `secrets.*`. La caché de BuildKit (`type=gha`) usa el token interno del runner, no el `GITHUB_TOKEN`. **Comprobado en el apply**: funciona con `contents: read` (tarea 3.3).
 
 ### D3. Job `test`: el mismo `Dockerfile`, con caché de capas
 
@@ -159,7 +159,13 @@ Pasos, cada uno cronometrado:
 
 Los tiempos se escriben en una tabla en `$GITHUB_STEP_SUMMARY`, junto con la versión de la imagen del runner (`ImageVersion`), `dotnet --version`, el número de CPU y la memoria. La modificación del `.cs` vive solo en el runner y nunca se commitea.
 
-Son los mismos escenarios que la tabla del documento 07, para poder comparar. Se ejecuta al menos una vez en la rama del change y el resultado se anota en el documento 07 como una sola medición.
+Son los mismos escenarios que la tabla del documento 07, para poder comparar. El resultado se anota en el documento 07 como una sola medición.
+
+**Observado en el apply (2026-10-31)**: no se puede lanzar desde la rama del change.
+- `gh workflow run measure.yml --ref feat/add-ci-pipeline` devuelve `HTTP 404: workflow measure.yml not found on the default branch`.
+- `gh workflow list --all` solo muestra `ci`, porque se registró al ejecutarse con `pull_request`.
+
+Como se esperaba en D11, la primera medición se hace tras el merge (seguimiento del change).
 
 ### D7. Dependabot
 

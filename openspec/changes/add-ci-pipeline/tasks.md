@@ -52,14 +52,39 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
   Verificar en local que el YAML es válido (`docker run` de una imagen de `actionlint` fijada por digest, o revisión manual si no se usa) y que no contiene `secrets.`, `pull_request_target` ni referencias `@v`.
 
   **Hecho el 2026-10-31**: `rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667` (última versión estable, ejecutado sin red) no encuentra ningún problema en `ci.yml` ni en `measure.yml`. Ninguna coincidencia de `secrets.`, `pull_request_target` ni `@v`, y las 10 referencias `uses:` usan un SHA de 40 caracteres con comentario de versión.
-- [ ] 3.2 Publicar la rama y abrir el PR en borrador (D11). Verificar en el PR:
+- [x] 3.2 Publicar la rama y abrir el PR en borrador (D11). Verificar en el PR:
   - aparecen los checks `test`, `image` y `openspec`, los tres en verde;
   - el registro de `test` muestra los tests de los tres proyectos;
   - el de `image` muestra la ejecución con código 0 y la tabla de Grype;
   - el de `openspec` muestra la validación estricta.
 
   Anotar los tiempos de cada job, en frío y en una segunda ejecución con caché.
-- [ ] 3.3 Comprobar los permisos efectivos: la sección "GITHUB_TOKEN Permissions" del registro de cada job solo muestra `Contents: read` (y `Metadata: read`). Comprobar que la caché `type=gha` funciona con esos permisos: la segunda ejecución reutiliza capas (`CACHED`). Resuelve la marca **(no verificado)** de D2.
+
+  **Hecho el 2026-10-31, PR #13** (en borrador). Los tres checks salieron en verde a la primera, solo con el evento `pull_request`: el push a la rama no dispara la CI.
+  - `test` ejecuta `Sandbox.Agents.Tests`, `Sandbox.Scenarios.Tests` y `Sandbox.Domain.Tests` (`total: 8`, `succeeded: 8`).
+  - `image`:
+    - la ejecución endurecida termina con 0;
+    - Grype detecta 11 paquetes y 7 vulnerabilidades en `libc6` (6 de severidad media y 1 *negligible*), **ninguna con arreglo**;
+    - el control las ignora por `only-fixed` y pasa.
+  - `openspec`: 4 de 4 válidos.
+
+  Tiempos de los jobs:
+
+  | Job | En frío (run 41224370017) | Con caché, sin cambios de código (run 41224648076) |
+  |---|---|---|
+  | `test` | 51 s | 14 s (todos los pasos `CACHED`, también el de los tests) |
+  | `image` | 2 min 20 s | 1 min 36 s |
+  | `openspec` | 13 s | 14 s |
+
+  Ajuste tras la primera ejecución (commit `328b3b4`): `cache-db: true` en los dos pasos de Grype, porque la base de datos se descargaba dos veces (unos 80 s cada una). Además, `severity-cutoff: high` en el informe, que anotaba un aviso engañoso por las vulnerabilidades medias. En la segunda ejecución, el paso de control restaura la base de datos de la caché (`Cache hit for: grype-db-v0.121.0`).
+- [x] 3.3 Comprobar los permisos efectivos: la sección "GITHUB_TOKEN Permissions" del registro de cada job solo muestra `Contents: read` (y `Metadata: read`). Comprobar que la caché `type=gha` funciona con esos permisos: la segunda ejecución reutiliza capas (`CACHED`). Resuelve la marca **(no verificado)** de D2.
+
+  **Hecho**:
+  - en los tres jobs, "GITHUB_TOKEN Permissions" muestra solo `Contents: read` y `Metadata: read`;
+  - con esos permisos, la caché de BuildKit se importa y se exporta: en la segunda ejecución, los pasos 7 a 21 de `test` salen `CACHED`;
+  - la caché de la base de datos de Grype también funciona.
+
+  También se observó que `docker/build-push-action` sube un artefacto con el registro del build (`.dockerbuild`, unos 37 KB). Su contenido no se ha revisado **(no verificado)**, pero este build no recibe ningún secreto.
 - [ ] 3.4 Pruebas negativas en el PR, cada una con un commit temporal revertido después:
   - un test que falla deja `test` en rojo con el nombre del test;
   - un `Program.cs` del Runner que devuelve 1 deja `image` en rojo;
@@ -69,10 +94,14 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
 
 ## 4. Workflow manual de medición
 
-- [ ] 4.1 Crear `.github/workflows/measure.yml` según D6: solo `workflow_dispatch`, `contents: read`, acciones por SHA, y la tabla de tiempos con la información del runner en `$GITHUB_STEP_SUMMARY`. Verificar que no aparece entre los checks del PR.
-- [ ] 4.2 Intentar lanzarlo en la rama con `gh workflow run measure.yml --ref feat/add-ci-pipeline`.
+- [x] 4.1 Crear `.github/workflows/measure.yml` según D6: solo `workflow_dispatch`, `contents: read`, acciones por SHA, y la tabla de tiempos con la información del runner en `$GITHUB_STEP_SUMMARY`. Verificar que no aparece entre los checks del PR.
+
+  **Hecho**: actionlint sin problemas. Los checks del PR #13 son solo `test`, `image` y `openspec`.
+- [x] 4.2 Intentar lanzarlo en la rama con `gh workflow run measure.yml --ref feat/add-ci-pipeline`.
   - Si funciona, verificar que el resumen muestra los cinco tiempos.
   - Si GitHub lo rechaza porque el workflow aún no está en `main`, que es lo que se espera según D11, anotar el mensaje exacto en `design.md` (D6). La medición pasa entonces al seguimiento tras el merge.
+
+  **Resultado**: rechazado con `HTTP 404: workflow measure.yml not found on the default branch`, anotado en D6. La medición pasa al seguimiento.
 - [ ] 4.3 Documentación en `docs/learn/07-contenedores-en-sistemas-agenticos.md`:
   - actualizar la sección "CI" con lo implementado;
   - explicar cómo se lanza la medición;
@@ -81,11 +110,19 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
 
 ## 5. Dependabot
 
-- [ ] 5.1 Crear `.github/dependabot.yml` según D7. Verificar tras el push:
+- [x] 5.1 Crear `.github/dependabot.yml` según D7. Verificar tras el push:
   - la pestaña *Insights > Dependency graph > Dependabot* (o `gh api`) no muestra errores de configuración;
   - si GitHub publica un check de validación de `dependabot.yml` en el PR, está en verde.
 
   Anotar lo que se pudo comprobar antes del merge.
+
+  **Comprobado antes del merge (2026-10-31)**:
+  - GitHub **no** publica ningún check de validación de `dependabot.yml` en el PR: solo aparecen `test`, `image` y `openspec`. Dependabot lee la configuración de la rama por defecto, así que lo que muestre la pestaña de Dependabot solo se verá tras el merge (seguimiento).
+  - Validación alternativa con el esquema público de SchemaStore (`dependabot-2.0.json`, borrador 7) y `ajv-cli` 5.0.0 en `node:26.13.0-alpine` fijada por digest, en el scratchpad:
+    - el fichero real es válido;
+    - una copia con `interval: fortnightly` se rechaza (`/updates/0/schedule/interval`).
+
+    El esquema de SchemaStore no es la fuente oficial de GitHub, así que esto confirma la forma, no que GitHub la acepte.
 
 ## 6. Configuración de GitHub (orden de D8)
 

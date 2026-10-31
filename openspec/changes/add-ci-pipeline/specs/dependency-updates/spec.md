@@ -47,3 +47,6 @@ El repositorio SHALL tener activadas las alertas de vulnerabilidades de dependen
 - **GIVEN** una dependencia del repositorio con una vulnerabilidad publicada que tiene versión corregida
 - **WHEN** GitHub detecta la vulnerabilidad
 - **THEN** aparece una alerta en el repositorio y se abre un pull request de seguridad con la versión corregida
+
+### Requirement: Requisito temporal sin escenario
+El repositorio SHALL fallar esta prueba negativa temporal.
