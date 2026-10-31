@@ -22,7 +22,7 @@ Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. Deci
 - **Flujo híbrido**: `dotnet` local para iterar rápido; el contenedor es la referencia para dar algo por terminado y la base de la CI. Un flujo "solo contenedor" se evalúa como experimento acotado en la fase 1 (medición documentada en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](learn/07-contenedores-en-sistemas-agenticos.md)).
 - **`Dockerfile` explícito** multi-etapa, con etapa `test` sin red, usuario no root e imágenes fijadas. La vía de contenedores del SDK queda como comparación posible.
 - **Secretos** por fichero montado, nunca en la imagen ni versionados.
-- **Motor**: Docker o Podman (se evitan funciones exclusivas de uno solo). Instalarlo es un prerrequisito de la fase 1.
+- **Motor**: Docker o Podman (se evitan funciones exclusivas de uno solo). Ya está instalado Docker Desktop con WSL2 acotado en el equipo actual; límites y valores en el documento 07.
 - Fuera de alcance de momento: dev container y servicios adicionales distintos del panel de trazas.
 
 ## Documentación de aprendizaje paralela
@@ -39,4 +39,4 @@ Este laboratorio busca también **aprender** los conceptos que valida. Por eso l
 - Soporte y calidad del *function calling* según el modelo de DeepSeek elegido.
 - No determinismo del LLM: las pruebas críticas deben usar cliente falso.
 - Coste y latencia: límites de iteraciones y tokens desde la fase 2.
-- El equipo de desarrollo no tiene motor de contenedores ni WSL2 habilitado: hay que resolverlo (y revisar la política de licencias de la organización) antes de la fase 1. La CI puede validar la imagen mientras tanto.
+- Recursos del equipo de desarrollo actual (Surface Go 2: 2 núcleos de baja potencia y 8 GB de RAM). Docker Desktop con WSL2 en reposo consume unos 2,8 GB y deja unos 0,5 GB libres. Por eso Docker se usa solo para construir y verificar, se cierra al terminar (`wsl --shutdown`), y la medición nativo frente a contenedor se hace en otro equipo. La CI valida la imagen en cualquier caso. Detalle en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](learn/07-contenedores-en-sistemas-agenticos.md).
