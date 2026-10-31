@@ -1,0 +1,16 @@
+# Prueba negativa temporal de add-ci-pipeline (tarea 6.1): GitHub debe rechazarlo. Se borra en el commit siguiente.
+name: tmp-sha-check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tag-pinned:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
