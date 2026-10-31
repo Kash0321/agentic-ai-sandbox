@@ -10,11 +10,13 @@ context: |
   Las reglas de negocio se especifican y validan en el dominio, nunca en prompts. El LLM propone, el dominio decide.
   Todo lo que no sea la llamada al LLM debe ser determinista y verificable con un IChatClient falso, sin red ni API key.
   Las convenciones de código y las reglas de diseño están en AGENTS.md; no las dupliques en los artefactos.
+  El proyecto tiene un objetivo de aprendizaje: la documentación de docs/learn/ se escribe en paralelo al código y todo change debe actualizarla.
 
 rules:
   proposal:
     - Indica explícitamente qué queda fuera de alcance
     - Referencia la fase de docs/plan.md a la que pertenece el change
+    - Lista los conceptos nuevos que introduce y qué documento de docs/learn/ los cubre o debe crearse
   specs:
     - Cada requisito usa SHALL o MUST y lleva al menos un escenario Given/When/Then
     - Los contratos de tools especifican nombre, parámetros, resultado y códigos de error estables
@@ -26,12 +28,16 @@ rules:
   tasks:
     - Divide en tareas pequeñas y verificables
     - Incluye siempre las tareas de tests (caso feliz, cada código de error y schema de las tools)
+    - Incluye siempre una tarea de documentación de aprendizaje en docs/learn/ (crear o actualizar el documento, con lo observado en la práctica, y ampliar el glosario)
     - Cierra con dotnet build sin warnings y dotnet test en verde
 
 operations:
   apply:
     guidance:
       - No marques una tarea como completada si no está probada
+      - Trabaja en una rama propia para el change (ver AGENTS.md, sección 9); nunca directamente sobre main
+      - No des el change por terminado sin la documentación de aprendizaje de docs/learn/ al día
+      - Al cerrar, propón conceptos nuevos que merezca la pena documentar
       - Ejecuta dotnet build y dotnet test antes de dar el change por terminado
   archive:
     guidance:
