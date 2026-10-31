@@ -130,6 +130,25 @@ docker compose run --build --rm runner
 
 Hoy el Runner no hace nada y devuelve 0. Los escenarios (`--scenario <id>`) llegan en la fase 4, y la conexión con DeepSeek, que abrirá la red del `runner`, en la fase 2. La API key se pasará como secreto por fichero (`secrets/deepseek_api_key`, ignorado por Git), nunca dentro de la imagen. Detalle, mediciones y razones en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](docs/learn/07-contenedores-en-sistemas-agenticos.md).
 
+## Integración continua
+
+Cada pull request y cada push a `main` ejecutan [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Sus tres jobs son checks obligatorios para fusionar en `main`:
+
+| Check | Qué comprueba |
+|---|---|
+| `test` | `docker build --target test`: compilación y tests, igual que en local |
+| `image` | La imagen final arranca con las restricciones del `runner` y no tiene vulnerabilidades altas o críticas con arreglo (Grype) |
+| `openspec` | `openspec validate --all --strict` |
+
+Dependabot propone cada semana las actualizaciones de NuGet, de las imágenes base y de las acciones, y las de seguridad en cuanto se publican. Para validar las specs sin instalar Node, puedes usar la misma imagen que la CI:
+
+```bash
+docker build -t openspec-cli tools/openspec
+docker run --rm --network none -v "$PWD:/repo:ro" openspec-cli validate --all --strict
+```
+
+Detalle en [`docs/learn/09-integracion-continua-y-cadena-de-suministro.md`](docs/learn/09-integracion-continua-y-cadena-de-suministro.md) y en el [ADR 0002](docs/adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md).
+
 ## Documentación de aprendizaje
 
 Este laboratorio sirve también para **aprender** los conceptos que valida. La carpeta [`docs/learn/`](docs/learn/README.md) es el cuaderno de estudio y crece en paralelo al código:
@@ -141,6 +160,8 @@ Este laboratorio sirve también para **aprender** los conceptos que valida. La c
 - [Guardrails](docs/learn/05-guardrails.md) y patrones de implementación.
 - [Autenticación y autorización de agentes](docs/learn/06-autenticacion-y-autorizacion.md) con datos sensibles.
 - [Contenedores en sistemas agénticos](docs/learn/07-contenedores-en-sistemas-agenticos.md): diseño, secretos, endurecimiento y coste.
+- [Estructura y estándares de la solución .NET](docs/learn/08-estructura-y-estandares-de-la-solucion-dotnet.md): capas, SDK, paquetes, saltos de línea y globalización invariante.
+- [Integración continua y cadena de suministro](docs/learn/09-integracion-continua-y-cadena-de-suministro.md): CI, checks obligatorios, acciones fijadas por SHA, Dependabot y escaneo de imágenes.
 - [Glosario](docs/learn/glosario.md)
 
 ## Flujo de trabajo con OpenSpec
@@ -177,7 +198,12 @@ agentic-ai-sandbox/
 ├── .gitattributes                 # eol=lf para Dockerfile, scripts y YAML
 ├── .env.example                   # Plantilla sin secretos
 ├── secrets/                       # Secretos locales (ignorado por Git)
-├── .github/workflows/ci.yml       # CI sobre el mismo Dockerfile
+├── .github/
+│   ├── workflows/ci.yml           # CI: checks test, image y openspec
+│   ├── workflows/measure.yml      # Medición manual nativo frente a contenedor
+│   ├── dependabot.yml             # Actualizaciones semanales y de seguridad
+│   └── rulesets/protect-main.json # Protección de main (se aplica con gh api)
+├── tools/openspec/Dockerfile      # CLI de OpenSpec fijada, para la CI y uso local
 ├── openspec/
 │   ├── config.yaml                # Esquema y contexto del proyecto para OpenSpec
 │   ├── specs/                     # Especificaciones vigentes (fuente de verdad)
@@ -199,7 +225,7 @@ agentic-ai-sandbox/
 
 ## Estado
 
-Fase actual: **0 · Bootstrap y documentación**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fase actual: **1 · Setup de solución**, último change (`add-ci-pipeline`). Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

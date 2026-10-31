@@ -16,6 +16,7 @@ Orden recomendado para empezar:
 | 6 | [Autenticación y autorización de agentes](06-autenticacion-y-autorizacion.md) | ¿Cómo se hace de forma segura con datos sensibles? |
 | 7 | [Contenedores en sistemas agénticos](07-contenedores-en-sistemas-agenticos.md) | ¿Cómo y por qué se contenerizan el build, los tests y la ejecución? ¿Cuánto cuesta? |
 | 8 | [Estructura y estándares de la solución .NET](08-estructura-y-estandares-de-la-solucion-dotnet.md) | ¿Cómo se estructura la solución, qué se ignora en Git, cómo se fija el SDK, cómo se prueban las reglas de capas, cómo se normalizan los saltos de línea y por qué la globalización es invariante? |
+| 9 | [Integración continua y cadena de suministro](09-integracion-continua-y-cadena-de-suministro.md) | ¿Qué comprueba la CI y con qué garantías? ¿Por qué se fijan las acciones por SHA, qué hace Dependabot y cuándo bloquea una vulnerabilidad? |
 | - | [Glosario](glosario.md) | Vocabulario del proyecto. |
 
 ## Convenciones de estos documentos
@@ -34,7 +35,7 @@ Cada *change* de OpenSpec incluye una tarea de documentación de aprendizaje (ve
 | Fase | Documentación de aprendizaje |
 |------|------------------------------|
 | 0 | Los siete documentos base y el glosario (esta carpeta) |
-| 1 | Nuevo: 08 (estructura y estándares de la solución .NET; con `add-container-build`, también saltos de línea y globalización invariante). Actualizar 07 con el resultado del experimento de velocidad (hecho en el equipo de desarrollo con `add-container-build`; falta la medición en otro equipo) y lo aprendido con el `Dockerfile` (hecho) y la CI (pendiente) |
+| 1 | Nuevos: 08 (estructura y estándares de la solución .NET; con `add-container-build`, también saltos de línea y globalización invariante) y 09 (CI y cadena de suministro, con `add-ci-pipeline`). Actualizado 07 con el experimento de velocidad en el equipo de desarrollo, el `Dockerfile` y la CI. Falta la medición en un runner de GitHub, que se lanza tras el merge de `add-ci-pipeline` |
 | 2 | Actualizar 04 con lo aprendido al conectar DeepSeek con `IChatClient` (endpoint personalizado, límites reales); actualizar 07 con la gestión real del secreto en contenedor |
 | 3 | Nuevo: *Diseño de dominios aptos para agentes* (idempotencia, máquinas de estado, errores deterministas) |
 | 4 | Actualizar 02 y 03 con trazas reales del bucle; nuevo: *Diseño de tools para LLMs* |
@@ -61,7 +62,9 @@ Lista viva de temas candidatos. Cuando uno se aborde, se convierte en documento 
 | **Modelos de razonamiento frente a modelos de chat** | Cuándo compensa pagar más latencia por razonar | Fase 2 |
 | **Cumplimiento y gobierno** (RGPD, AI Act, auditoría, residencia de datos) | Determina si un sistema agéntico puede usarse con datos reales | Fase 7 |
 | **Fiabilidad** (timeouts, reintentos, fallback entre modelos, circuit breaker) | Un proveedor externo falla y el agente debe degradar con elegancia | Fase 5 |
-| **Seguridad de la cadena de suministro** (auditoría de NuGet, *package source mapping*, archivos de bloqueo, Dependabot, SBOM) | El repositorio es público y depende de paquetes de terceros; con warnings como errores, una vulnerabilidad nueva puede romper el build | Fase 1 (CI) |
-| **Builds reproducibles** (SDK y paquetes fijados, builds deterministas, mismo resultado en local, contenedor y CI) | Es el fundamento de poder fiarse de que "en verde" significa lo mismo en todas partes | Fase 1: contenedor hecho (imágenes por digest, globalización invariante; documentos 07 y 08); falta la CI |
-| **Escaneo de vulnerabilidades de imágenes** (CVE de la imagen base, SBOM de la imagen, cuándo romper el build) | Fijar por digest congela también los parches; hay que saber cuándo una base fijada se ha quedado vulnerable | Fase 1 (CI) |
+| **Seguridad de la cadena de suministro** (auditoría de NuGet, *package source mapping*, archivos de bloqueo, Dependabot, SBOM) | El repositorio es público y depende de paquetes de terceros; con warnings como errores, una vulnerabilidad nueva puede romper el build | Fase 1: **en parte en el documento 09** (acciones por SHA, Dependabot, alertas). Pendiente: *package source mapping*, archivos de bloqueo de NuGet y SBOM |
+| **Builds reproducibles** (SDK y paquetes fijados, builds deterministas, mismo resultado en local, contenedor y CI) | Es el fundamento de poder fiarse de que "en verde" significa lo mismo en todas partes | Fase 1: **hecho** (documentos 07, 08 y 09: imágenes por digest, globalización invariante, CI sobre el mismo `Dockerfile`) |
+| **Escaneo de vulnerabilidades de imágenes** (CVE de la imagen base, SBOM de la imagen, cuándo romper el build) | Fijar por digest congela también los parches; hay que saber cuándo una base fijada se ha quedado vulnerable | Fase 1: **hecho** (documento 09 y ADR 0002). Pendiente: SBOM como artefacto |
+| **Seguridad de GitHub Actions** (`pull_request_target`, inyección en expresiones `${{ }}`, *cache poisoning*, OIDC frente a secretos de larga duración) | La CI de un repositorio público es una superficie de ataque; en cuanto la fase 2 necesite un secreto o la CI publique algo, hará falta | Fase 2 o al publicar imágenes |
+| **Procedencia y firma de artefactos** (atestaciones, SLSA, firma de imágenes) | Demostrar que una imagen sale de este repositorio y de este workflow, no solo que su contenido es el esperado | Posterior a la PoC |
 | **Control de salida de red (egress) de agentes** (red `none`, redes internas de compose, proxy con lista de dominios) | El `runner` pasa de no tener red a tener que hablar con un único destino; limitar a qué puede llegar un agente es una defensa clave | Fase 2 y 5 |

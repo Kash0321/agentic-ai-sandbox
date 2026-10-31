@@ -85,7 +85,7 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
   - la caché de la base de datos de Grype también funciona.
 
   También se observó que `docker/build-push-action` sube un artefacto con el registro del build (`.dockerbuild`, unos 37 KB). Su contenido no se ha revisado **(no verificado)**, pero este build no recibe ningún secreto.
-- [ ] 3.4 Pruebas negativas en el PR, cada una con un commit temporal revertido después:
+- [x] 3.4 Pruebas negativas en el PR, cada una con un commit temporal revertido después:
   - un test que falla deja `test` en rojo con el nombre del test;
   - un `Program.cs` del Runner que devuelve 1 deja `image` en rojo;
   - un requisito sin escenario deja `openspec` en rojo;
@@ -100,7 +100,11 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
 
   Revertido en `2420464` y `d54d575`. El segundo commit hizo falta porque un `git add` con una ruta ya borrada abortó y dejó fuera el spec. La rama vuelve a ser idéntica a `328b3b4`, salvo `design.md` y `tasks.md`.
 
-  **Ronda B** (pendiente, en 6.2): un `Program.cs` que devuelve 1 deja `image` en rojo y el ruleset impide el merge.
+  **Ronda B** (commit temporal `f8ba7e6`, run 41225654497, ya con el ruleset de 6.2 aplicado):
+  - `Program.cs` con `return 1;` deja `image` en rojo en el paso de ejecución endurecida ("Process completed with exit code 1");
+  - `test` y `openspec` quedan en verde.
+
+  Revertido en `79f15f4`, sin diferencias con `d69e433`.
 - [ ] 3.5 Comprobar el escenario "PR que solo cambia documentación": un commit del propio change que solo toque Markdown dispara los tres checks.
 
 ## 4. Workflow manual de medición
@@ -113,7 +117,7 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
   - Si GitHub lo rechaza porque el workflow aún no está en `main`, que es lo que se espera según D11, anotar el mensaje exacto en `design.md` (D6). La medición pasa entonces al seguimiento tras el merge.
 
   **Resultado**: rechazado con `HTTP 404: workflow measure.yml not found on the default branch`, anotado en D6. La medición pasa al seguimiento.
-- [ ] 4.3 Documentación en `docs/learn/07-contenedores-en-sistemas-agenticos.md`:
+- [x] 4.3 Documentación en `docs/learn/07-contenedores-en-sistemas-agenticos.md`:
   - actualizar la sección "CI" con lo implementado;
   - explicar cómo se lanza la medición;
   - si 4.2 la ejecutó, añadir sus tiempos junto a los del equipo local, como una sola ejecución, y la conclusión según el criterio del documento; si no, dejar la tabla preparada y marcada como pendiente;
@@ -147,16 +151,27 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
   - con el commit temporal `7b10893`, `ci` sale en verde (run 41225453954);
   - el workflow temporal con `actions/checkout@v7.0.1` falla en *Set up job* con la anotación "The action actions/checkout@v7.0.1 is not allowed in Kash0321/agentic-ai-sandbox because all actions must be pinned to a full-length commit SHA" (run 41225453987);
   - borrado en `9bff522`.
-- [ ] 6.2 Leer el `integration_id` real de los checks del PR (`gh api repos/{owner}/{repo}/commits/<sha>/check-runs`, campo `app.id`). Añadir a `.github/rulesets/protect-main.json` la regla `required_status_checks` con `test`, `image` y `openspec`, ese `integration_id` y `strict_required_status_checks_policy: false`. Aplicarlo con `gh api -X PUT repos/{owner}/{repo}/rulesets/26267641 --input .github/rulesets/protect-main.json`. Verificar:
+- [x] 6.2 Leer el `integration_id` real de los checks del PR (`gh api repos/{owner}/{repo}/commits/<sha>/check-runs`, campo `app.id`). Añadir a `.github/rulesets/protect-main.json` la regla `required_status_checks` con `test`, `image` y `openspec`, ese `integration_id` y `strict_required_status_checks_policy: false`. Aplicarlo con `gh api -X PUT repos/{owner}/{repo}/rulesets/26267641 --input .github/rulesets/protect-main.json`. Verificar:
   - `gh api …/rulesets/26267641` coincide con el JSON;
   - el PR muestra los tres checks como obligatorios;
   - durante una prueba negativa de 3.4 (repetir una), GitHub impide fusionar el PR.
-- [ ] 6.3 Activar las alertas de vulnerabilidades y las actualizaciones de seguridad (`PUT …/vulnerability-alerts` y `PUT …/automated-security-fixes`). Verificar con `GET` que ambas están activas (204 y `enabled: true`).
+
+  **Hecho el 2026-10-31** (commit `d69e433`, aplicado con `gh api -X PUT`):
+  - Todos los *check runs* tienen `app.id=15368` (`app.slug: github-actions`).
+  - El ruleset real coincide con el JSON, salvo valores por defecto que añade el servidor y que ya estaban antes del cambio: `required_reviewers: []`, `require_extra_approval_for_unattributed_changes: true` y `do_not_enforce_on_create: false`.
+  - En el PR #13, GraphQL devuelve `isRequired: true` para `test`, `image` y `openspec`.
+  - Con `image` en rojo (ronda B de 3.4), el PR queda en `mergeStateStatus: BLOCKED`. Al volver a verde pasa a `CLEAN`, aunque sigue en borrador, así que el bloqueo se debía al check obligatorio.
+- [x] 6.3 Activar las alertas de vulnerabilidades y las actualizaciones de seguridad (`PUT …/vulnerability-alerts` y `PUT …/automated-security-fixes`). Verificar con `GET` que ambas están activas (204 y `enabled: true`).
+
+  **Hecho el 2026-10-31**:
+  - `GET …/vulnerability-alerts` pasa de `404` a `204 No Content`;
+  - `GET …/automated-security-fixes` pasa de `{"enabled":false}` a `{"enabled":true,"paused":false}`;
+  - `security_and_analysis.dependabot_security_updates` queda en `enabled`.
 
 ## 7. Documentación
 
 - [x] 7.1 Crear `docs/adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md` (D9): contexto, decisión, alternativas (Trivy, Scout, solo informar, bloquear todo) y consecuencias.
-- [ ] 7.2 Crear `docs/learn/09-integracion-continua-y-cadena-de-suministro.md`, con fecha de verificación y lo observado en los grupos 2 a 6. Debe cubrir:
+- [x] 7.2 Crear `docs/learn/09-integracion-continua-y-cadena-de-suministro.md`, con fecha de verificación y lo observado en los grupos 2 a 6. Debe cubrir:
   - qué es la CI con GitHub Actions y cómo funciona aquí;
   - el `GITHUB_TOKEN` y sus permisos;
   - `pull_request` frente a `pull_request_target`;
@@ -169,7 +184,7 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
   - errores típicos y referencias.
 
   Diagramas solo con caracteres seguros. Verificar con `check-docs.ps1` que no hay enlaces rotos ni flechas no monoespaciadas.
-- [ ] 7.3 Actualizar:
+- [x] 7.3 Actualizar:
   - `docs/learn/glosario.md` con los términos nuevos;
   - `docs/learn/README.md`: índice, fila de la fase 1 y backlog (marcar "cadena de suministro", "builds reproducibles" y "escaneo de imágenes" según lo cubierto; proponer temas nuevos);
   - `README.md`: sección de CI y estructura con `.github/` y `tools/`;

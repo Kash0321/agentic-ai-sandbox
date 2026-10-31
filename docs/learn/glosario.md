@@ -95,3 +95,20 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **`PredefinedCulturesOnly`** | Opción de .NET que, en modo invariante, impide crear culturas distintas de la invariante (lanza `CultureNotFoundException`) |
 | **ADR** | Architecture Decision Record: documento breve que registra una decisión de arquitectura, su contexto, sus alternativas y sus consecuencias |
 | **Renormalizar** | Volver a aplicar los atributos de saltos de línea a lo ya versionado (`git add --renormalize .`) |
+| **CI (integración continua)** | Ejecución automática de las comprobaciones (build, tests, validaciones) en cada cambio propuesto o integrado |
+| **GitHub Actions** | Servicio de CI de GitHub: ejecuta *workflows* definidos en `.github/workflows/` en máquinas llamadas *runners* |
+| **Workflow / job / step** | Fichero YAML con disparadores (workflow), unidades que se ejecutan en un runner (jobs) y los pasos de cada una (steps) |
+| **Runner** | Máquina (aquí, una VM `ubuntu-24.04` de GitHub) que ejecuta un job y se descarta al terminar |
+| **`GITHUB_TOKEN`** | Token que GitHub da a cada job; sus permisos se declaran con `permissions:` y deben ser los mínimos |
+| **`pull_request_target`** | Evento que ejecuta el workflow con el contexto y los permisos de la rama base; peligroso si ejecuta código del PR |
+| **Fijación por SHA (*SHA pinning*)** | Referenciar una acción por el SHA completo de un commit en vez de por etiqueta, que se puede mover |
+| **Ataque de reetiquetado** | Mover las etiquetas de versión de una acción o paquete a código malicioso para que lo ejecute quien las usa |
+| **Check obligatorio (*required status check*)** | Check que el ruleset exige en verde para fusionar; se identifica por su nombre (`context`) y la app que lo publica (`integration_id`) |
+| **Dependabot** | Servicio de GitHub que propone por PR actualizaciones de versión y de seguridad de las dependencias, y emite alertas |
+| **Periodo de espera (*cooldown*)** | Días que Dependabot espera tras publicarse una versión antes de proponerla; por defecto 3 en las de versión |
+| **CVE** | Identificador público de una vulnerabilidad conocida |
+| **Grype** | Escáner de vulnerabilidades de Anchore: lista los paquetes de una imagen y los cruza con una base de datos de avisos |
+| **`only-fixed`** | Opción del escáner que solo considera las vulnerabilidades con versión corregida publicada |
+| **Caché `gha` (BuildKit)** | Caché de capas de BuildKit guardada en la caché de GitHub Actions; separada por `scope` |
+| **`workflow_dispatch`** | Disparador para lanzar un workflow a mano; solo funciona si el workflow está en la rama por defecto |
+| **Telemetría** | Envío de estadísticas de uso por parte de una herramienta; la CLI de OpenSpec la tiene y se desactiva con `OPENSPEC_TELEMETRY=0` |
