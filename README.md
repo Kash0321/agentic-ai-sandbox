@@ -177,6 +177,10 @@ agentic-ai-sandbox/
 
 Fase actual: **0 · Bootstrap y documentación**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
+## Licencia
+
+Distribuido bajo la [licencia MIT](LICENSE). Las dependencias conservan sus propias licencias.
+
 ## Aviso
 
 Proyecto experimental sin garantías. No usar en producción ni con datos reales.

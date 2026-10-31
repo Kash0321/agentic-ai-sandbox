@@ -10,6 +10,7 @@ Guía de contexto y comportamiento para cualquier asistente de IA que trabaje en
 - **Fuera de alcance**: bases de datos reales, integración con ERP/CRM reales, autenticación de usuarios, UI, despliegue, alta disponibilidad.
 - No añadas dependencias, proyectos ni capas "por si acaso". Si algo no sirve a un patrón que se quiere validar, no se añade.
 - Nunca incluyas secretos, API keys ni datos reales en el repo. La key va en User Secrets o variables de entorno.
+- El proyecto es open source bajo licencia **MIT** (`LICENSE`). Las dependencias nuevas deben tener una licencia compatible (MIT, Apache-2.0, BSD u otra permisiva). No añadas dependencias con copyleft fuerte (GPL, AGPL) ni sin licencia clara sin consultarlo antes. No copies código de terceros sin comprobar su licencia.
 
 ## 2. Principios de diseño
 
