@@ -90,6 +90,17 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
   - un `Program.cs` del Runner que devuelve 1 deja `image` en rojo;
   - un requisito sin escenario deja `openspec` en rojo;
   - `severity-cutoff: low` sin `only-fixed` muestra si el escaneo bloquea con los hallazgos actuales. Si no hay ninguno, anotarlo como **(no verificado)** en la política.
+
+  **Ronda A** (commit temporal `f668982`, run 41224942023): los tres checks en rojo.
+  - `test` falla y nombra `Sandbox.Domain.Tests.TemporaryFailingTests.Ci_WithFailingTest_TurnsCheckRed` (`total: 9`, `failed: 1`).
+  - `openspec` falla con `ADDED "Requisito temporal sin escenario" must include at least one scenario`.
+  - `image`, con `severity-cutoff: low` y sin `only-fixed`, falla por las 7 vulnerabilidades de `libc6` (`Failed minimum severity level`): el control bloquea cuando su umbral se alcanza.
+
+  El caso exacto "alta o crítica **con arreglo**" no se puede reproducir hoy: la imagen no tiene ninguna. Queda **(no verificado)** con datos reales; lo que sí está probado es el mecanismo y que las vulnerabilidades sin arreglo no bloquean (3.2).
+
+  Revertido en `2420464` y `d54d575`. El segundo commit hizo falta porque un `git add` con una ruta ya borrada abortó y dejó fuera el spec. La rama vuelve a ser idéntica a `328b3b4`, salvo `design.md` y `tasks.md`.
+
+  **Ronda B** (pendiente, en 6.2): un `Program.cs` que devuelve 1 deja `image` en rojo y el ruleset impide el merge.
 - [ ] 3.5 Comprobar el escenario "PR que solo cambia documentación": un commit del propio change que solo toque Markdown dispara los tres checks.
 
 ## 4. Workflow manual de medición
@@ -126,10 +137,16 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
 
 ## 6. Configuración de GitHub (orden de D8)
 
-- [ ] 6.1 Activar la exigencia de SHA (`gh api -X PUT repos/{owner}/{repo}/actions/permissions` con `enabled`, `allowed_actions` y `sha_pinning_required: true`). Verificar:
+- [x] 6.1 Activar la exigencia de SHA (`gh api -X PUT repos/{owner}/{repo}/actions/permissions` con `enabled`, `allowed_actions` y `sha_pinning_required: true`). Verificar:
   - `gh api …/actions/permissions` devuelve `sha_pinning_required: true`;
   - la CI se reejecuta en verde;
   - un commit temporal con una acción fijada por etiqueta hace que GitHub rechace el workflow. Revertirlo.
+
+  **Hecho el 2026-10-31**, con la aprobación expresa del responsable para el grupo 6:
+  - la API pasa de `"sha_pinning_required":false` a `true`;
+  - con el commit temporal `7b10893`, `ci` sale en verde (run 41225453954);
+  - el workflow temporal con `actions/checkout@v7.0.1` falla en *Set up job* con la anotación "The action actions/checkout@v7.0.1 is not allowed in Kash0321/agentic-ai-sandbox because all actions must be pinned to a full-length commit SHA" (run 41225453987);
+  - borrado en `9bff522`.
 - [ ] 6.2 Leer el `integration_id` real de los checks del PR (`gh api repos/{owner}/{repo}/commits/<sha>/check-runs`, campo `app.id`). Añadir a `.github/rulesets/protect-main.json` la regla `required_status_checks` con `test`, `image` y `openspec`, ese `integration_id` y `strict_required_status_checks_policy: false`. Aplicarlo con `gh api -X PUT repos/{owner}/{repo}/rulesets/26267641 --input .github/rulesets/protect-main.json`. Verificar:
   - `gh api …/rulesets/26267641` coincide con el JSON;
   - el PR muestra los tres checks como obligatorios;
