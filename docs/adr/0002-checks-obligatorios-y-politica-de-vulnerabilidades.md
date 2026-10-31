@@ -46,7 +46,7 @@ La razón de `only-fixed` es que el check solo debe ponerse en rojo cuando hay a
 
 ## Referencias
 
-- Spec `continuous-integration` (en el change `add-ci-pipeline`; tras archivarlo, en `openspec/specs/continuous-integration/spec.md`).
+- Spec [`continuous-integration`](../../openspec/specs/continuous-integration/spec.md); change archivado en `openspec/changes/archive/2026-10-31-add-ci-pipeline/`.
 - Acción `anchore/scan-action`, entradas `severity-cutoff` y `only-fixed`: <https://github.com/anchore/scan-action>
 - Checks obligatorios y filtros de ruta: <https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/collaborating-on-repositories-with-code-quality-features/troubleshooting-required-status-checks>
 - Documento de aprendizaje: [`docs/learn/09-integracion-continua-y-cadena-de-suministro.md`](../learn/09-integracion-continua-y-cadena-de-suministro.md).

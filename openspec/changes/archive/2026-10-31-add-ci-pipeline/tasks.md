@@ -190,7 +190,7 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
   - `docs/learn/glosario.md` con los términos nuevos;
   - `docs/learn/README.md`: índice, fila de la fase 1 y backlog (marcar "cadena de suministro", "builds reproducibles" y "escaneo de imágenes" según lo cubierto; proponer temas nuevos);
   - `README.md`: sección de CI y estructura con `.github/` y `tools/`;
-  - `AGENTS.md`: secciones 8, 10 y 11, que hablan de la CI en futuro;
+  - `AGENTS.md`: secciones 9, 10 y 11, que hablan de la CI en futuro (en la planificación ponía "8"; la sección 8 no menciona la CI);
   - `docs/plan.md`: estado de `add-container-build` ("Fusionado en `main`") y de `add-ci-pipeline`.
 
   Verificar enlaces y flechas con `check-docs.ps1`.
@@ -218,4 +218,6 @@ Rama de trabajo: `feat/add-ci-pipeline`. Referencias: `design.md` (decisiones D1
 - Tras el merge:
   - comprobar que la CI se ejecuta en el push a `main`;
   - en las semanas siguientes, revisar los primeros PRs de Dependabot: si actualiza etiqueta y digest o solo el digest, si mantiene los SHA con su comentario y si respeta `Directory.Packages.props`. Anotar lo observado en el documento 09;
-  - si 4.2 no pudo lanzarse en la rama, lanzar la medición desde `main` y completar el documento 07.
+  - si 4.2 no pudo lanzarse en la rama, lanzar la medición desde `main` y completar el documento 07;
+  - la primera vez que Grype encuentre una vulnerabilidad alta o crítica **con arreglo**, comprobar que el check `image` falla y la identifica, y anotarlo en el documento 09. Hoy no se puede reproducir porque la imagen no tiene ninguna;
+  - cuando llegue el primer PR desde un fork, comprobar en el registro de sus jobs que se ejecuta con token de solo lectura y sin secretos, y anotarlo en el documento 09.

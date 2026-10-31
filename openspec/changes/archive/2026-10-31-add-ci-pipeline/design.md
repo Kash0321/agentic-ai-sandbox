@@ -108,6 +108,11 @@ Alternativa: `docker build` directo, sin acciones. Es una dependencia menos, per
 
    La tabla aparece en el registro porque la acción la imprime cuando el formato es `table`.
 
+   **Otros ajustes en el apply**, tras la primera ejecución:
+   - `cache-db: true` en los dos pasos de Grype: la base de datos se descargaba dos veces (unos 80 s cada una) y ahora el segundo paso la restaura de la caché;
+   - `severity-cutoff: high` también en el informe, que con el umbral por defecto anotaba un aviso engañoso por las vulnerabilidades medias;
+   - `--memory 256m --cpus 1` en la ejecución de prueba, para replicar todas las restricciones del `runner` de compose y no solo las de seguridad.
+
 **El resultado no es determinista**: la base de datos de vulnerabilidades se descarga en cada ejecución, y un CVE publicado hoy pone en rojo un commit que ayer estaba en verde. Es lo que se busca, y la política y sus consecuencias se registran en el ADR 0002.
 
 Alternativas del escáner (decididas en el explore):

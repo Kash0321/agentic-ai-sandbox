@@ -66,7 +66,7 @@ Ninguna. `container-build` ya define la imagen y su etapa de tests; este change 
   - `docs/learn/09-…`.
 - **Ficheros modificados**:
   - `.github/rulesets/protect-main.json`;
-  - `README.md`, `AGENTS.md` (secciones 8, 10 y 11) y `docs/plan.md`;
+  - `README.md`, `AGENTS.md` (secciones 9, 10 y 11) y `docs/plan.md`;
   - `docs/learn/07`, `docs/learn/README.md` y `docs/learn/glosario.md`.
 - **Configuración externa en GitHub**: ruleset, exigencia de SHA, alertas y actualizaciones de seguridad de Dependabot. Se aplica con `gh api` y en un orden concreto, para no dejar `main` bloqueada. Al revertir, hay que deshacerla también.
 - **Dependencias**: ningún paquete NuGet nuevo. Las acciones de GitHub, la versión de Grype, la imagen `node` y la CLI de OpenSpec se fijan con la última versión estable, verificada en su fuente primaria al implementar.
