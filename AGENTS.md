@@ -130,7 +130,7 @@ Este proyecto es un laboratorio cuyo objetivo incluye que su responsable **apren
 - **Pull request**: la integración en `main` se hace siempre mediante PR, abierto solo cuando el usuario lo pida. La descripción incluye qué cambia y por qué, el change de OpenSpec asociado (si lo hay) y cómo se ha verificado (build, tests, `openspec validate`). **El PR solo se abre cuando se cumple la definición de terminado de la sección 8**, incluidos el change verificado y archivado y todos los tests automáticos en verde. Una vez exista la CI, el PR no se considera listo hasta que todos sus checks estén en verde.
 - **Merge**: lo hace el usuario, preferiblemente con *squash* para mantener un historial lineal, y solo con todos los checks en verde (el ruleset exigirá los de la CI cuando existan). No fusiones un PR sin que el usuario lo pida expresamente.
 - **Tras el merge**: se borra la rama y se actualiza `main` en local antes de empezar el siguiente cambio.
-- **Archivado en OpenSpec**: se hace en la rama del change, tras verificarlo y antes de abrir el PR (sección 6), nunca después del merge. Si el archivado regenera ficheros ajenos al change (por ejemplo, metadatos de los skills generados), no se incluyen en el commit: van a su propia rama de mantenimiento.
+- **Archivado en OpenSpec**: se hace en la rama del change, tras verificarlo y antes de abrir el PR (sección 6), nunca después del merge. Si aparecen en el árbol ficheros ajenos al change (por ejemplo, los skills regenerados tras actualizar el CLI de OpenSpec con `openspec update`), no se incluyen en el commit del change: van a su propia rama de mantenimiento.
 
 ## 10. Contenedores
 
