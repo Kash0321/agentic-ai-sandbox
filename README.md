@@ -50,15 +50,15 @@ Versión ASCII:
 ```
  Usuario/Escenario
         │
-        ▼
-  ┌───────────┐     ┌────────────────────────────────────────────┐
-  │  Agent    │────▶│ IChatClient pipeline                       │
-  │  Runner   │     │  [Guardrails entrada] → [FunctionInvocation]│◀──▶ API DeepSeek
-  └───────────┘     │            └─▶ [Guardrails de tools]       │
-        ▲           └──────────────────────┬─────────────────────┘
-        │                                  ▼
+        v
+  ┌───────────┐     ┌─────────────────────────────────────────────┐
+  │  Agent    │────>│ IChatClient pipeline                        │
+  │  Runner   │     │ [Guardrails entrada] -> [FunctionInvocation]│<──> API DeepSeek
+  └───────────┘     │            └─> [Guardrails de tools]        │
+        ^           └──────────────────────┬──────────────────────┘
+        │                                  v
    Salida/Trazas                    Tools (AIFunction)
-                                           ▼
+                                           v
                           Servicios de dominio dummy (in-memory)
                           Orders · Customers · Inventory · Fallos
 ```
@@ -115,6 +115,18 @@ Configuración por defecto (`appsettings.json`):
 
 > Los endpoints y modelos disponibles pueden cambiar; consulta la documentación oficial de DeepSeek. Verifica el soporte de *function calling* del modelo elegido antes de usarlo en un escenario.
 
+## Documentación de aprendizaje
+
+Este laboratorio sirve también para **aprender** los conceptos que valida. La carpeta [`docs/learn/`](docs/learn/README.md) es el cuaderno de estudio y crece en paralelo al código:
+
+- [IA agéntica en procesos transaccionales](docs/learn/01-ia-agentica-en-sistemas-transaccionales.md): cómo adaptar un ERP/CRM y qué enfoques existen.
+- [Motor de razonamiento e invocación de herramientas](docs/learn/02-motor-de-razonamiento-y-herramientas.md)
+- [Function Calling](docs/learn/03-function-calling.md)
+- [Herramientas de Microsoft](docs/learn/04-herramientas-microsoft.md), con tabla de referencia.
+- [Guardrails](docs/learn/05-guardrails.md) y patrones de implementación.
+- [Autenticación y autorización de agentes](docs/learn/06-autenticacion-y-autorizacion.md) con datos sensibles.
+- [Glosario](docs/learn/glosario.md)
+
 ## Flujo de trabajo con OpenSpec
 
 El desarrollo sigue *spec-driven development* con [OpenSpec](https://github.com/Fission-AI/OpenSpec): ningún cambio de comportamiento se implementa sin una propuesta y unas especificaciones previas.
@@ -127,6 +139,10 @@ El desarrollo sigue *spec-driven development* con [OpenSpec](https://github.com/
 Comandos útiles: `openspec list`, `openspec list --specs`, `openspec show <item>`.
 
 Cada fase de [`docs/plan.md`](docs/plan.md) se materializa en uno o varios *changes*. Los comandos exactos pueden variar según la versión instalada; consulta `openspec --help`.
+
+## Flujo de Git
+
+`main` está protegida. Cada cambio se desarrolla en su propia rama (`<tipo>/<descripcion>`, por ejemplo `feat/add-order-service`) y se integra mediante *pull request* con *squash merge*. Un change de OpenSpec equivale a una rama. Detalle en [`AGENTS.md`](AGENTS.md), sección 9.
 
 ## Estructura prevista del proyecto
 
@@ -144,6 +160,7 @@ agentic-ai-sandbox/
 │   └── changes/                   # Propuestas en curso (+ archive/)
 ├── docs/
 │   ├── plan.md                    # Plan de trabajo por fases
+│   ├── learn/                     # Documentación de aprendizaje (en paralelo al código)
 │   └── adr/                       # Decisiones de arquitectura
 ├── src/
 │   ├── Sandbox.Domain/            # Entidades, records, reglas de negocio

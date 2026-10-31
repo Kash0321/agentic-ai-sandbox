@@ -86,7 +86,21 @@ Este proyecto usa [OpenSpec](https://github.com/Fission-AI/OpenSpec) (spec-drive
 - En Claude Code el flujo se invoca con `/opsx:propose`, `/opsx:apply`, `/opsx:archive` y `/opsx:explore`. En otros asistentes, con los skills `openspec-*` de `.agents/skills/`.
 - Una fase de `docs/plan.md` = uno o varios changes. Las decisiones de diseño van en `design.md` del change o en `docs/adr/` si trascienden un único change.
 
-## 7. Flujo de trabajo para asistentes
+## 7. Documentación de aprendizaje
+
+Este proyecto es un laboratorio cuyo objetivo incluye que su responsable **aprenda** los conceptos que valida. La documentación de `docs/learn/` se escribe **en paralelo al código**, no después. El índice, las convenciones y el backlog de temas están en `docs/learn/README.md`.
+
+- **Cada change de OpenSpec incluye una tarea de documentación de aprendizaje**: crear o actualizar el documento de `docs/learn/` que cubre el concepto que introduce o valida el change. Un change no se da por terminado sin ella.
+- La `proposal.md` de cada change indica qué conceptos nuevos introduce y qué documento de `docs/learn/` los cubre.
+- **Enfoque didáctico**: explica qué es, por qué importa, cómo funciona, qué alternativas hay y cómo se aplica *en este proyecto* (con enlaces a specs y código). Incluye errores típicos y referencias.
+- **Rigor**: contrasta con documentación oficial las afirmaciones sobre tecnología de terceros y anota la fecha de verificación. Marca como **(no verificado)** lo que no hayas podido comprobar. Distingue lo que dice la documentación de lo que es criterio de diseño propio. No inventes cifras, versiones ni comportamientos.
+- **Aprendizaje real**: al implementar, incorpora lo observado (trazas, errores, costes). Si la práctica desmiente un documento, corrígelo y dilo.
+- **Diagramas**: Mermaid cuando sea posible. En ASCII, solo caracteres monoespaciados seguros (`+ - | > < ^ v` y los de caja `┌ ─ ┐ │ └ ┘ ┬ ┴ ├ ┤ ┼`). Nunca `▶ ◀ ▲ ▼ →` dentro de dibujos: su ancho varía según la fuente y los descuadra.
+- **Glosario**: añade a `docs/learn/glosario.md` los términos nuevos.
+- **Propón temas nuevos**: al cerrar cada fase, sugiere los conceptos que merezca la pena documentar y regístralos en el backlog de `docs/learn/README.md`. Si durante el trabajo surge un concepto que el usuario probablemente no domina, dilo y propón documentarlo.
+- La documentación de aprendizaje no sustituye a las specs: las specs dicen *qué debe hacer* el sistema; `docs/learn/` explica *por qué y cómo funciona*.
+
+## 8. Flujo de trabajo para asistentes
 
 - Trabaja por fases según `docs/plan.md`; no adelantes fases sin que se pida.
 - Cambios pequeños y revisables; un cambio = un propósito.
@@ -94,3 +108,16 @@ Este proyecto usa [OpenSpec](https://github.com/Fission-AI/OpenSpec) (spec-drive
 - Las decisiones de arquitectura no triviales se documentan en `docs/adr/`.
 - Si una instrucción entra en conflicto con este documento, pregunta antes de actuar.
 - No hagas commits, push ni cambios en CI sin petición explícita.
+
+## 9. Flujo de Git
+
+`main` es la rama estable y está **protegida** en GitHub mediante un ruleset (`.github/rulesets/protect-main.json`: PR obligatorio con solo *squash*, sin borrado, sin force push, historial lineal y conversaciones resueltas). No se trabaja directamente sobre ella. Si se cambia el fichero, hay que reaplicarlo con `gh api`; el estado real manda sobre el JSON.
+
+- **Una rama por cambio**: al empezar cualquier cambio (un change de OpenSpec, una corrección de documentación, una tarea de mantenimiento), crea una rama nueva desde `main` actualizada. Un change de OpenSpec = una rama.
+- **Nombre de la rama**: `<tipo>/<descripcion-corta-en-kebab-case>`, con tipo `feat`, `fix`, `docs`, `chore` o `refactor`. Si hay change de OpenSpec, usa su id (por ejemplo `feat/add-order-service`).
+- **Nunca commitees ni hagas push directo a `main`**, ni `push --force` sobre ramas compartidas.
+- **Commits**: pequeños, con mensaje en inglés en modo imperativo y una línea de resumen clara. Solo cuando el usuario lo pida.
+- **Pull request**: la integración en `main` se hace siempre mediante PR, abierto solo cuando el usuario lo pida. La descripción incluye qué cambia y por qué, el change de OpenSpec asociado (si lo hay) y cómo se ha verificado (build, tests, `openspec validate`).
+- **Merge**: lo hace el usuario, preferiblemente con *squash* para mantener un historial lineal. No fusiones un PR sin que el usuario lo pida expresamente.
+- **Tras el merge**: se borra la rama y se actualiza `main` en local antes de empezar el siguiente cambio.
+- **Archivado en OpenSpec**: `openspec archive` se ejecuta en una rama propia (o en la misma del change, antes del merge) cuando el usuario lo pida.
