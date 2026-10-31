@@ -43,7 +43,7 @@ operations:
       - No des el change por terminado sin la documentación de aprendizaje de docs/learn/ al día
       - Al cerrar, propón conceptos nuevos que merezca la pena documentar
       - Ejecuta dotnet build y dotnet test antes de dar el change por terminado
-      - Al cerrar, sigue la definición de terminado de AGENTS.md (sección 8): validate --all --strict, build y todos los tests en verde, /opsx:verify sin críticos y /opsx:archive, todo en la rama del change y antes de abrir el PR
+      - "Al cerrar, sigue la definición de terminado de AGENTS.md (sección 8): validate --all --strict, build y todos los tests en verde, /opsx:verify sin críticos y /opsx:archive, todo en la rama del change y antes de abrir el PR"
   archive:
     guidance:
       - Archiva en la rama del change, antes de abrir el PR, y solo tras /opsx:verify sin problemas críticos y con build y todos los tests automáticos en verde
