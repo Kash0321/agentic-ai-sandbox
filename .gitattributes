@@ -1,0 +1,8 @@
+# LF en el índice para todo fichero de texto, sea cual sea core.autocrlf
+* text=auto
+
+# LF también en el árbol de trabajo para lo que se interpreta dentro de contenedores Linux
+Dockerfile text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf

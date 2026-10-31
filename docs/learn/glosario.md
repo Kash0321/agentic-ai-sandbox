@@ -78,3 +78,20 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **Test de arquitectura** | Test que comprueba reglas de estructura (por ejemplo, qué capa puede depender de cuál) en vez de comportamiento |
 | **Test de cableado** | Test mínimo que solo comprueba que el ensamblado bajo prueba está bien referenciado y se carga; marcador hasta que haya tests reales |
 | **xUnit v3** | Versión actual del marco de pruebas xUnit; sus proyectos de tests son ejecutables y se ejecutan con Microsoft.Testing.Platform |
+| **CRLF / LF** | Formas de terminar una línea: `\r\n` (Windows) o `\n` (Linux y macOS) |
+| **`.gitattributes`** | Fichero versionado que asigna atributos de Git por ruta; aquí, cómo se convierten los saltos de línea |
+| **`text=auto`** | Atributo de Git: si el fichero es texto, se guarda con LF en el índice (salvo que ya estuviera con CRLF) |
+| **`eol`** | Atributo de Git que fija el salto de línea en el árbol de trabajo al extraer (`lf` o `crlf`); activa `text` |
+| **`core.autocrlf`** | Configuración local de Git que convierte saltos de línea; no viaja con el repositorio y los atributos la sustituyen |
+| **BuildKit** | Motor de construcción de imágenes de Docker; ejecuta las etapas, gestiona la caché y admite opciones como `RUN --network` |
+| **Contexto de build** | Conjunto de ficheros que el cliente envía al motor para construir; lo filtra el `.dockerignore` |
+| **`.dockerignore`** | Fichero que excluye rutas del contexto de build; aquí, de lista blanca (se excluye todo y se reincluye lo necesario) |
+| **`RUN --network=none`** | Opción de una instrucción `RUN` que ejecuta ese paso sin red; aquí, la etapa de tests |
+| **Lista de manifiestos (índice multiplataforma)** | Entrada del registro que agrupa las variantes de una imagen por arquitectura; su digest es el que se fija |
+| **Imagen colgante (*dangling*)** | Imagen sin repositorio ni etiqueta y sin contenedor que la use; la borra `docker image prune` |
+| **Forma *exec* (`ENTRYPOINT`)** | `ENTRYPOINT` escrito como lista JSON: el proceso arranca sin shell intermedio y recibe las señales directamente |
+| **ICU** | International Components for Unicode: biblioteca de datos de cultura (formatos, ordenación, mayúsculas) que usa .NET |
+| **Globalización invariante (modo)** | Modo de .NET sin datos de cultura: todo se comporta como la cultura invariante y no hace falta ICU |
+| **`PredefinedCulturesOnly`** | Opción de .NET que, en modo invariante, impide crear culturas distintas de la invariante (lanza `CultureNotFoundException`) |
+| **ADR** | Architecture Decision Record: documento breve que registra una decisión de arquitectura, su contexto, sus alternativas y sus consecuencias |
+| **Renormalizar** | Volver a aplicar los atributos de saltos de línea a lo ya versionado (`git add --renormalize .`) |

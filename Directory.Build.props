@@ -9,6 +9,8 @@
     <AnalysisLevel>10.0-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <IsPackable>false</IsPackable>
+    <!-- Mismo comportamiento en local, tests e imagen chiseled: ver docs/adr/0001-globalizacion-invariante.md -->
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
 </Project>
