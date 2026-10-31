@@ -140,3 +140,11 @@ Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. El d
 - **Datos**: nunca se montan datos reales en un contenedor; solo datos sintéticos.
 - **Un contenedor no es un guardrail**: no sustituye a la autorización ni a las políticas de las secciones 4 y 5.
 - Los cambios en el `Dockerfile` o en compose siguen el flujo normal (change de OpenSpec, rama y PR) y actualizan `docs/learn/07-contenedores-en-sistemas-agenticos.md` con lo aprendido.
+
+## 11. Versiones y dependencias
+
+- **Plataforma**: .NET 10 (LTS). Pasar a una versión mayor posterior solo cuando sea estable y oficial, mediante un change propio.
+- **Al fijar la versión** de un paquete NuGet, una imagen base o una acción de GitHub, usa la **última versión estable oficial**, comprobada en la fuente primaria (la API de NuGet, `releases.json` de .NET, el registro de imágenes de Microsoft o las releases de GitHub). **No uses versiones preliminares (preview, RC)** sin una decisión expresa del usuario. Anota la fecha de verificación en el change o el PR.
+- **No leas versiones de páginas de documentación**: pueden estar desfasadas (en este proyecto ya pasó con `Microsoft.Extensions.AI` y `Microsoft.Agents.AI`).
+- **El SDK mínimo de `global.json` es laxo a propósito**: el repositorio exige solo un SDK 10 (`10.0.100` o posterior) y no obliga a nadie a tener la última versión. Mantener al día el SDK de una máquina concreta es decisión de su responsable. El `Dockerfile` y la CI sí usan la última imagen estable de la serie 10.0.
+- Las versiones de paquetes se centralizan en `Directory.Packages.props` (sección 3). Cuando exista la CI, las actualizaciones se automatizan con Dependabot y se revisan por PR.
