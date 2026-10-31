@@ -85,8 +85,8 @@ jobs:
           grype-version: v0.121.0
           cache-db: true
           fail-build: true
-          severity-cutoff: low
-          only-fixed: false
+          severity-cutoff: high
+          only-fixed: true
           output-format: table
 
   openspec:
