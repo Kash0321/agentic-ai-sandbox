@@ -111,7 +111,7 @@ Este proyecto es un laboratorio cuyo objetivo incluye que su responsable **apren
 
 ## 9. Flujo de Git
 
-`main` es la rama estable y está **protegida** en GitHub. No se trabaja directamente sobre ella.
+`main` es la rama estable y está **protegida** en GitHub mediante un ruleset (`.github/rulesets/protect-main.json`: PR obligatorio con solo *squash*, sin borrado, sin force push, historial lineal y conversaciones resueltas). No se trabaja directamente sobre ella. Si se cambia el fichero, hay que reaplicarlo con `gh api`; el estado real manda sobre el JSON.
 
 - **Una rama por cambio**: al empezar cualquier cambio (un change de OpenSpec, una corrección de documentación, una tarea de mantenimiento), crea una rama nueva desde `main` actualizada. Un change de OpenSpec = una rama.
 - **Nombre de la rama**: `<tipo>/<descripcion-corta-en-kebab-case>`, con tipo `feat`, `fix`, `docs`, `chore` o `refactor`. Si hay change de OpenSpec, usa su id (por ejemplo `feat/add-order-service`).
