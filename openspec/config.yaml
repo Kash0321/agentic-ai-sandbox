@@ -46,4 +46,4 @@ operations:
   archive:
     guidance:
       - Archiva en la rama del change, antes de abrir el PR, y solo tras /opsx:verify sin problemas críticos y con build y todos los tests automáticos en verde
-      - No incluyas en el commit los ficheros ajenos al change que regenere el archivado (por ejemplo, los metadatos de los skills generados); van a su propia rama de mantenimiento
+      - No incluyas en el commit del change los ficheros ajenos a él que aparezcan en el árbol (por ejemplo, los skills regenerados tras actualizar el CLI de OpenSpec); van a su propia rama de mantenimiento
