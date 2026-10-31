@@ -1,0 +1,40 @@
+# Actualizaciones de versión semanales, un PR por ecosistema (ver docs/learn/09).
+# Las actualizaciones de seguridad no pertenecen a estos grupos y llegan cuando se publican.
+version: 2
+
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Madrid
+    groups:
+      nuget:
+        patterns: ["*"]
+
+  # Imágenes base del Dockerfile de la solución y de la imagen de herramientas de OpenSpec
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /tools/openspec
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Madrid
+    groups:
+      docker:
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Madrid
+    groups:
+      github-actions:
+        patterns: ["*"]

@@ -1,6 +1,6 @@
 # 7. Contenedores en sistemas agénticos
 
-> **Estado**: actualizado con el change `add-container-build` (fase 1). La imagen, la etapa de tests y el servicio `runner` ya existen, y este documento describe lo implementado y lo medido. La CI y la medición en otro equipo llegan con `add-ci-pipeline`; la gestión real del secreto, en la fase 2. **Verificado**: 2026-10-31 contra Microsoft Learn, la documentación de Docker y el registro de MCR lo que se cita con enlace, y con pruebas reales en este repositorio; lo demás se marca **(no verificado)**.
+> **Estado**: actualizado con el change `add-container-build` (fase 1). La imagen, la etapa de tests y el servicio `runner` ya existen, y este documento describe lo implementado y lo medido. La CI está implementada con `add-ci-pipeline` (detalle en el documento 9); la medición en un runner de GitHub queda pendiente hasta después de su merge, y la gestión real del secreto llega en la fase 2. **Verificado**: 2026-10-31 contra Microsoft Learn, la documentación de Docker y el registro de MCR lo que se cita con enlace, y con pruebas reales en este repositorio; lo demás se marca **(no verificado)**.
 
 ## Por qué contenerizar este proyecto
 
@@ -102,7 +102,7 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:de4fe90a...
 - **Se fija el digest de la lista de manifiestos multiplataforma** (no el del manifiesto `amd64`), para que el mismo `Dockerfile` sirva en otras arquitecturas.
 - **Manda el digest**: al descargar por `etiqueta@digest`, la imagen queda en local como `mcr.microsoft.com/dotnet/sdk:<none>`. La etiqueta solo informa a quien lee el `Dockerfile` (observado).
 - **La etiqueta `10.0` apunta a `noble`** (Ubuntu 24.04): mismo digest que `10.0-noble` en MCR el 2026-10-31. Existe también `resolute`, que no es el valor por defecto.
-- **Actualizar** es manual hasta que exista Dependabot (`add-ci-pipeline`): consultar la última versión en `releases.json` de .NET, obtener el digest del registro de MCR y cambiar etiqueta y digest a la vez.
+- **Actualizar**: desde `add-ci-pipeline`, Dependabot (ecosistema `docker`) revisa estas imágenes cada semana y abre un PR. Todavía no se sabe si actualiza la etiqueta y el digest o solo el digest dentro de la misma etiqueta **(no verificado; pendiente de sus primeros PRs)**, así que el procedimiento manual sigue valiendo: consultar la última versión en `releases.json` de .NET, obtener el digest del registro de MCR y cambiar etiqueta y digest a la vez. Detalle en el [documento 9](09-integracion-continua-y-cadena-de-suministro.md).
 
 ### Imagen final *chiseled*
 
@@ -157,7 +157,7 @@ Todo está declarado en `compose.yaml` y comprobado con `docker inspect` sobre u
 
 El Runner actual funciona con todas estas restricciones (código 0, sin avisos de escritura). Los límites de memoria y CPU son valores de partida: la fase 2 los revisará con carga real. La red se abrirá en la fase 2, solo para llegar a la API del modelo, y ese cambio quedará visible en su propio change.
 
-Pendiente: el **escaneo de la imagen** en busca de vulnerabilidades llega con la CI (`add-ci-pipeline`); la herramienta está por decidir **(no verificado)**.
+La CI comprueba lo mismo en cada PR: el job `image` ejecuta la imagen final una vez con estas restricciones (`--read-only`, `--cap-drop ALL`, `no-new-privileges`, sin red, 256 MB y 1 CPU) y después la **escanea con Grype**. Política y detalle en el [ADR 0002](../adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md) y en el [documento 9](09-integracion-continua-y-cadena-de-suministro.md).
 
 ### Secretos
 
@@ -176,7 +176,15 @@ El repositorio es público, así que:
 
 ### CI
 
-Un workflow en cada PR con dos tareas: `docker build --target test` y construcción de la imagen final con escaneo. Permisos mínimos y acciones fijadas por SHA. Cuando exista, se añade como check obligatorio al ruleset de `main`.
+Implementada con `add-ci-pipeline` ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)). En cada PR y en cada push a `main` hay tres jobs, que son checks obligatorios del ruleset de `main`:
+
+- `test`: `docker build --target test`, el mismo comando que en local;
+- `image`: imagen final, ejecución endurecida y escaneo;
+- `openspec`: validación estricta de las specs.
+
+Token de solo lectura, acciones fijadas por SHA (y exigido por el repositorio), sin secretos y con caché de capas de BuildKit en GitHub Actions.
+
+En el PR #13, `test` tardó 51 s en frío y 14 s con caché sin cambios de código. Es mucho menos que en la Surface Go 2, porque el runner no tiene sus límites de memoria. Todo el detalle está en el [documento 9](09-integracion-continua-y-cadena-de-suministro.md).
 
 ## Velocidad: ¿merece la pena "solo contenedor"?
 
@@ -257,7 +265,23 @@ Desglose del build en frío: extraer las capas del SDK la primera vez (~31 s; oc
 - "Sin cambios" no es comparable: Docker no hace nada si nada cambió (4 s), mientras que `dotnet test` siempre ejecuta los tests (30 s).
 - El nativo se midió **con Docker arrancado** y el equipo a menos de 340 MB libres, así que está penalizado. Sin Docker sería algo más rápido; no se midió.
 
-**Conclusión, según el criterio propio** (menos del doble y que no estorbe): el ciclo en contenedor tarda menos del doble que el nativo, pero en este equipo **sí estorba**. Docker ocupa unos 2,5 GB y deja el equipo entre 300 y 650 MB libres, así que no puede quedarse arrancado mientras se edita. Se mantiene el flujo **híbrido**: `dotnet` local para iterar, y `docker build --target test` para dar algo por terminado. La medición en un equipo con más memoria queda para `add-ci-pipeline`.
+**Conclusión, según el criterio propio** (menos del doble y que no estorbe): el ciclo en contenedor tarda menos del doble que el nativo, pero en este equipo **sí estorba**. Docker ocupa unos 2,5 GB y deja el equipo entre 300 y 650 MB libres, así que no puede quedarse arrancado mientras se edita. Se mantiene el flujo **híbrido**: `dotnet` local para iterar, y `docker build --target test` para dar algo por terminado.
+
+### Medición en un runner de GitHub (pendiente)
+
+`add-ci-pipeline` añade el workflow manual [`measure.yml`](../../.github/workflows/measure.yml). Mide en un mismo runner `ubuntu-24.04` los escenarios de la tabla anterior y escribe los tiempos, la versión de la imagen del runner, el SDK, las CPU y la memoria en el resumen de la ejecución. Se lanza con `gh workflow run measure.yml` y se sigue con `gh run watch`.
+
+**Todavía no se ha ejecutado.** Un workflow con `workflow_dispatch` solo se puede lanzar cuando está en la rama por defecto. Desde la rama del change, GitHub respondió `HTTP 404: workflow measure.yml not found on the default branch`. La tabla se completará tras el merge, como una sola medición:
+
+| Escenario | Runner de GitHub |
+|---|---|
+| Descarga de las imágenes base | pendiente |
+| `dotnet test` nativo en frío (con restauración) | pendiente |
+| `dotnet test` nativo tras cambiar un `.cs` | pendiente |
+| `docker build --target test` en frío (`--no-cache`) | pendiente |
+| `docker build --target test` tras cambiar un `.cs` | pendiente |
+
+Un dato indirecto que ya existe: en la CI, el job `test` (con su caché de GitHub Actions) tardó 51 s en frío y 14 s sin cambios. No es comparable con la tabla anterior, porque incluye preparar el runner y la caché es distinta.
 
 ## Contenedor y seguridad agéntica
 

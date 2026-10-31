@@ -22,8 +22,8 @@ La fase 1 se divide en tres changes de OpenSpec, para que cada PR sea pequeño y
 | Change | Contenido | Estado |
 |--------|-----------|--------|
 | `setup-dotnet-solution` | `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `.gitignore`, solución `.slnx`, proyectos de código y de tests, test de reglas de capas | Fusionado en `main` |
-| `add-container-build` | `Dockerfile` multi-etapa, `.dockerignore`, `compose.yaml`, `.gitattributes`, globalización invariante (ADR 0001) | Verificado y archivado; pendiente de fusionar |
-| `add-ci-pipeline` | Workflow de CI sobre el mismo `Dockerfile`, Dependabot, check obligatorio en el ruleset de `main`, medición nativo frente a contenedor | Pendiente |
+| `add-container-build` | `Dockerfile` multi-etapa, `.dockerignore`, `compose.yaml`, `.gitattributes`, globalización invariante (ADR 0001) | Fusionado en `main` |
+| `add-ci-pipeline` | Workflow de CI sobre el mismo `Dockerfile` (checks `test`, `image` con escaneo Grype y `openspec`), Dependabot, checks obligatorios en el ruleset de `main`, acciones fijadas por SHA, workflow manual de medición nativo frente a contenedor (ADR 0002) | Verificado y archivado; pendiente de fusionar. La medición se lanza tras el merge |
 
 Los entregables de la tabla de fases se reparten entre ellos; el criterio de salida de la fase se cumple cuando los tres están hechos.
 
