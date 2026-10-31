@@ -81,7 +81,7 @@ Este proyecto usa [OpenSpec](https://github.com/Fission-AI/OpenSpec) (spec-drive
 - Los requisitos se redactan con `SHALL`/`MUST` y cada uno lleva al menos un `#### Scenario:` (Given/When/Then). Los contratos de tools (nombre, parámetros, códigos de error) y los guardrails se especifican como requisitos.
 - Valida siempre con `openspec validate <id> --strict` antes de pedir revisión.
 - Durante la implementación, ve marcando las tareas de `tasks.md`; no marques como hecho lo que no esté probado.
-- Tras el despliegue/merge, archiva con `openspec archive <id>`, solo cuando el usuario lo pida.
+- **Cierre del change, antes del PR**: con todas las tareas hechas y los tests en verde (ver la definición de terminado en la sección 8), ejecuta `/opsx:verify` y corrige lo crítico; después archiva con `/opsx:archive` (que sincroniza las specs principales) **en la misma rama**. El PR se abre con el change ya archivado: no se abre el PR de un change sin verificar y archivar. Si se te pide abrirlo antes, recuérdalo y pregunta.
 - Correcciones de bugs que restauran el comportamiento ya especificado, typos y cambios de formato no necesitan change.
 - `openspec/` se gestiona con la CLI; no edites a mano la estructura generada salvo `openspec/config.yaml`, specs y changes. Los skills y comandos generados (`.claude/`, `.agents/`) se regeneran con `openspec update`; no los edites a mano.
 - En Claude Code el flujo se invoca con `/opsx:propose`, `/opsx:apply`, `/opsx:archive` y `/opsx:explore`. En otros asistentes, con los skills `openspec-*` de `.agents/skills/`.
@@ -106,6 +106,15 @@ Este proyecto es un laboratorio cuyo objetivo incluye que su responsable **apren
 - Trabaja por fases según `docs/plan.md`; no adelantes fases sin que se pida.
 - Cambios pequeños y revisables; un cambio = un propósito.
 - Antes de dar algo por terminado: `dotnet build` sin warnings y `dotnet test` en verde y, en cuanto exista el `Dockerfile`, también `docker build --target test` (ver sección 10). Si no puedes ejecutarlo, dilo.
+- **Definición de terminado de un change** (condición para abrir su PR). Todo lo siguiente, sin excepciones silenciosas:
+  1. Todas las tareas de `tasks.md` marcadas, y solo si están probadas.
+  2. `openspec validate --all --strict` sin errores.
+  3. `dotnet build` sin advertencias y `dotnet test` con **todos los tests automáticos en verde**; y, en cuanto exista el `Dockerfile`, `docker build --target test`.
+  4. Documentación de aprendizaje al día (sección 7).
+  5. Change verificado con `/opsx:verify`, sin problemas críticos.
+  6. Change archivado con `/opsx:archive`, en la misma rama, con las specs principales sincronizadas.
+
+  Si algo no se puede ejecutar o falla, no se da por terminado: dilo y explica qué falta.
 - Las decisiones de arquitectura no triviales se documentan en `docs/adr/`.
 - Si una instrucción entra en conflicto con este documento, pregunta antes de actuar.
 - No hagas commits, push ni cambios en CI sin petición explícita.
@@ -118,10 +127,10 @@ Este proyecto es un laboratorio cuyo objetivo incluye que su responsable **apren
 - **Nombre de la rama**: `<tipo>/<descripcion-corta-en-kebab-case>`, con tipo `feat`, `fix`, `docs`, `chore` o `refactor`. Si hay change de OpenSpec, usa su id (por ejemplo `feat/add-order-service`).
 - **Nunca commitees ni hagas push directo a `main`**, ni `push --force` sobre ramas compartidas.
 - **Commits**: pequeños, con mensaje en inglés en modo imperativo y una línea de resumen clara. Solo cuando el usuario lo pida.
-- **Pull request**: la integración en `main` se hace siempre mediante PR, abierto solo cuando el usuario lo pida. La descripción incluye qué cambia y por qué, el change de OpenSpec asociado (si lo hay) y cómo se ha verificado (build, tests, `openspec validate`).
-- **Merge**: lo hace el usuario, preferiblemente con *squash* para mantener un historial lineal. No fusiones un PR sin que el usuario lo pida expresamente.
+- **Pull request**: la integración en `main` se hace siempre mediante PR, abierto solo cuando el usuario lo pida. La descripción incluye qué cambia y por qué, el change de OpenSpec asociado (si lo hay) y cómo se ha verificado (build, tests, `openspec validate`). **El PR solo se abre cuando se cumple la definición de terminado de la sección 8**, incluidos el change verificado y archivado y todos los tests automáticos en verde. Una vez exista la CI, el PR no se considera listo hasta que todos sus checks estén en verde.
+- **Merge**: lo hace el usuario, preferiblemente con *squash* para mantener un historial lineal, y solo con todos los checks en verde (el ruleset exigirá los de la CI cuando existan). No fusiones un PR sin que el usuario lo pida expresamente.
 - **Tras el merge**: se borra la rama y se actualiza `main` en local antes de empezar el siguiente cambio.
-- **Archivado en OpenSpec**: `openspec archive` se ejecuta en una rama propia (o en la misma del change, antes del merge) cuando el usuario lo pida.
+- **Archivado en OpenSpec**: se hace en la rama del change, tras verificarlo y antes de abrir el PR (sección 6), nunca después del merge. Si el archivado regenera ficheros ajenos al change (por ejemplo, metadatos de los skills generados), no se incluyen en el commit: van a su propia rama de mantenimiento.
 
 ## 10. Contenedores
 

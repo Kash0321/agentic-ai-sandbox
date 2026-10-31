@@ -151,7 +151,7 @@ El desarrollo sigue *spec-driven development* con [OpenSpec](https://github.com/
 1. **Proponer**: crear un *change* (en Claude Code, `/opsx:propose "idea"`; por CLI, `openspec new change <nombre>`) en `openspec/changes/<nombre>/` con `proposal.md`, `tasks.md` y los *spec deltas* (requisitos y escenarios).
 2. **Validar**: `openspec validate <nombre> --strict`.
 3. **Implementar** (`/opsx:apply`): ejecutar las tareas de `tasks.md` y marcarlas al completarlas.
-4. **Archivar**: `openspec archive <nombre>` fusiona los deltas en `openspec/specs/`, que pasa a ser la fuente de verdad del comportamiento actual.
+4. **Verificar y archivar** (en la misma rama, **antes de abrir el PR**): `/opsx:verify` comprueba que la implementación cumple las specs y, si no hay problemas críticos y todos los tests están en verde, `/opsx:archive` (o `openspec archive <nombre>`) fusiona los deltas en `openspec/specs/`, que pasa a ser la fuente de verdad del comportamiento actual. El PR llega ya con el change archivado y con build y tests en verde.
 
 Comandos útiles: `openspec list`, `openspec list --specs`, `openspec show <item>`.
 
