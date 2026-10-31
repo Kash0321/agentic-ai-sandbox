@@ -71,7 +71,7 @@ Versión ASCII:
 
 ## Requisitos previos
 
-- Un motor de contenedores: [Docker](https://www.docker.com/products/docker-desktop) o [Podman](https://podman.io/). Es la referencia para construir, probar y ejecutar (previsto desde la fase 1).
+- Un motor de contenedores: [Docker](https://www.docker.com/products/docker-desktop) o [Podman](https://podman.io/). Es la referencia para construir, probar y ejecutar.
 - [.NET 10 SDK](https://dotnet.microsoft.com/download) (10.0.100 o posterior) para el ciclo de desarrollo local rápido. `dotnet test` usa Microsoft.Testing.Platform, que se configura en `global.json`.
 - Una **API key de DeepSeek** ([platform.deepseek.com](https://platform.deepseek.com))
 - [Node.js](https://nodejs.org) (LTS) y [OpenSpec](https://github.com/Fission-AI/OpenSpec) para el flujo de trabajo guiado por especificaciones:
@@ -116,20 +116,19 @@ Configuración por defecto (`appsettings.json`):
 
 > Los endpoints y modelos disponibles pueden cambiar; consulta la documentación oficial de DeepSeek. Verifica el soporte de *function calling* del modelo elegido antes de usarlo en un escenario.
 
-## Ejecución con contenedores (prevista desde la fase 1)
+## Ejecución con contenedores
 
-Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. El flujo es **híbrido**: `dotnet` local para iterar rápido y el contenedor como referencia y base de la CI. Los comandos siguientes se podrán usar cuando exista el `Dockerfile`:
+Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. El flujo es **híbrido**: `dotnet` local para iterar rápido y el contenedor como referencia para dar algo por terminado y como base de la CI.
 
 ```bash
-# Tests dentro del contenedor (sin red ni API key)
+# Tests dentro del contenedor (la etapa de tests se ejecuta sin red ni API key)
 docker build --target test .
 
-# Imagen final y ejecución de un escenario
-docker compose build
-docker compose run --rm runner --scenario create-order
+# Imagen final y ejecución del Runner (one-shot, endurecido y sin red)
+docker compose run --build --rm runner
 ```
 
-La API key se pasa como secreto por fichero (`secrets/deepseek_api_key`, ignorado por Git), nunca dentro de la imagen. Detalle y razones en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](docs/learn/07-contenedores-en-sistemas-agenticos.md).
+Hoy el Runner no hace nada y devuelve 0. Los escenarios (`--scenario <id>`) llegan en la fase 4, y la conexión con DeepSeek, que abrirá la red del `runner`, en la fase 2. La API key se pasará como secreto por fichero (`secrets/deepseek_api_key`, ignorado por Git), nunca dentro de la imagen. Detalle, mediciones y razones en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](docs/learn/07-contenedores-en-sistemas-agenticos.md).
 
 ## Documentación de aprendizaje
 
@@ -173,7 +172,7 @@ agentic-ai-sandbox/
 ├── global.json                    # Fija el SDK de .NET 10
 ├── AgenticSandbox.slnx
 ├── Dockerfile                     # Multi-etapa: restore, build, test, publish, final
-├── docker-compose.yml             # Servicio runner y perfil opcional de trazas
+├── compose.yaml                   # Servicio runner (y, en la fase 5, perfil opcional de trazas)
 ├── .dockerignore
 ├── .gitattributes                 # eol=lf para Dockerfile, scripts y YAML
 ├── .env.example                   # Plantilla sin secretos

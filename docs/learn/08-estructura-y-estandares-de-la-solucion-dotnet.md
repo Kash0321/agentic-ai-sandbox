@@ -1,6 +1,6 @@
 # 8. Estructura y estándares de la solución .NET
 
-> **Estado**: en construcción. Este documento crece con el change `setup-dotnet-solution`; ahora cubre `.gitignore`, `global.json`, la estructura en capas, la gestión central de paquetes, los analizadores, `.slnx` y los tests (xUnit v3 sobre Microsoft.Testing.Platform). Seguirá creciendo con las fases posteriores. **Verificado**: 2026-10-31 contra Microsoft Learn (`global.json`) y con pruebas reales en este repositorio. Lo que viene de conocimiento general de Git y no se contrastó con su documentación se marca **(no verificado)**.
+> **Estado**: en construcción. Este documento crece con el change `setup-dotnet-solution`; ahora cubre `.gitignore`, `global.json`, la estructura en capas, la gestión central de paquetes, los analizadores, `.slnx` y los tests (xUnit v3 sobre Microsoft.Testing.Platform). El change `add-container-build` añade los saltos de línea (`.gitattributes`) y la globalización invariante. Seguirá creciendo con las fases posteriores. **Verificado**: 2026-10-31 contra Microsoft Learn (`global.json`) y con pruebas reales en este repositorio. Lo que viene de conocimiento general de Git y no se contrastó con su documentación se marca **(no verificado)**.
 
 ## Qué cubre
 
@@ -306,6 +306,124 @@ El `.editorconfig` desactiva `CA1707` solo para `tests/`. Se comprobó que es ne
 - Olvidar el `Using` de `Xunit` y perder tiempo con un error de compilación que parece de otra cosa.
 - Escribir un test de arquitectura que compruebe una lista de nombres en lugar de las referencias reales: pasaría aunque el código estuviera mal.
 
+## Saltos de línea: `.gitattributes`
+
+> Añadido con el change `add-container-build`. **Verificado**: 2026-10-31 contra la documentación de Git ([gitattributes](https://git-scm.com/docs/gitattributes)) y con pruebas en este repositorio.
+
+### Qué es
+
+Windows termina las líneas con dos caracteres (CRLF, `\r\n`); Linux y macOS, con uno (LF, `\n`). Git puede convertir entre ambos al guardar un fichero (*checkin*) y al extraerlo (*checkout*). `.gitattributes` es el fichero versionado que dice **qué** conversión aplica a cada ruta, igual para todos los que clonan el repositorio.
+
+### Por qué importa aquí
+
+Lo que se ejecuta dentro de un contenedor Linux (scripts de shell y, en general, lo que interpreta Linux) falla o se comporta de forma rara con CRLF: el clásico `/bin/sh^M: bad interpreter`. Desde el change `add-container-build` el repositorio tiene `Dockerfile` y `compose.yaml`, y en Windows el contexto de build se envía **tal como está en el disco**. La configuración de Git de cada desarrollador (`core.autocrlf`) no debe decidir si eso funciona.
+
+### Dos sitios distintos: índice y árbol de trabajo
+
+```
+   árbol de trabajo                    índice (repositorio)
+  +----------------------+  checkin   +----------------------+
+  | CRLF o LF, según     | ---------> | LF                   |
+  | eol o core.autocrlf  | <--------- | (con text o          |
+  |                      |  checkout  |  text=auto)          |
+  +----------------------+            +----------------------+
+```
+
+- **`text` / `text=auto`** decide la normalización al guardar: con `text`, el índice guarda LF. Con `text=auto`, Git decide si el fichero es texto o binario, y si es texto lo normaliza, **salvo que ya estuviera en Git con CRLF** (documentación de Git).
+- **`eol`** decide cómo queda el fichero en el árbol de trabajo al extraerlo. `eol=lf` deja en disco lo mismo que hay en el índice (LF). Declarar `eol` activa `text` por sí solo.
+- Si una ruta no tiene `text` ni `eol` declarados, manda la configuración local (`core.autocrlf` o `core.eol`). Si los tiene, mandan los atributos.
+- Si varias líneas coinciden con una ruta, **gana la última**, atributo por atributo.
+
+### Nuestra configuración
+
+```
+* text=auto
+Dockerfile text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+```
+
+- `* text=auto`: el repositorio guarda LF en todos los ficheros de texto, aunque alguien no tenga `core.autocrlf` configurado.
+- `eol=lf` solo donde Linux interpreta el fichero (`Dockerfile`, scripts y YAML). El resto (`.cs`, `.md`, `.csproj`...) se extrae como prefiera cada desarrollador.
+
+**Por qué `.editorconfig` no fija `end_of_line`** (criterio propio): el editor y Git ya se ponen de acuerdo por separado. Si `.editorconfig` forzara LF en todo, en Windows con `core.autocrlf=true` el editor y Git estarían reescribiendo los saltos de línea en sentidos opuestos. El único sitio donde LF es obligatorio son los ficheros de la lista anterior, y ahí lo garantiza `.gitattributes`.
+
+### Qué se observó en la práctica
+
+- **Antes de añadirlo**, el índice ya estaba todo en LF (`git ls-files --eol` no mostró ningún `i/crlf`), y el árbol de trabajo de este equipo estaba en CRLF por `core.autocrlf=true`. Por eso `git add --renormalize .` no cambió ningún fichero versionado: no había nada que normalizar.
+- `git check-attr eol -- Dockerfile compose.yaml x.sh` devuelve `lf` para los tres, y `unspecified` para un `.cs` o un `.json`.
+- Un fichero nuevo con CRLF, añadido al índice, aparece como `i/lf w/crlf attr/text=auto`: se guarda con LF aunque el disco tenga CRLF.
+- En un clon con `core.autocrlf=true`, los YAML pasaron de `w/crlf` a **`w/lf`** al aplicar el `.gitattributes`, y `README.md` o `Program.cs` siguieron en `w/crlf`.
+- En un clon limpio con `core.autocrlf=true`, `Dockerfile` y `compose.yaml` salen con LF, y `.dockerignore` con **CRLF** (no está en la lista de `eol=lf`). Docker lo tolera: el contexto quedó igual de filtrado (10,25 kB) y el build sin caché pasó. No se ha comprobado con Podman. Como funciona, no se añadió a la lista "por si acaso"; si algún motor fallara con él, bastaría con añadir `.dockerignore text eol=lf`.
+- **Un clon que ya existía no reescribe sus ficheros** solo por recibir el `.gitattributes`: la conversión ocurre al extraer. Para forzarla en un clon local se puede volver a extraer todo (`git rm --cached -r .` y `git reset --hard`, con el árbol de trabajo limpio). La documentación de Git describe la conversión "al guardar y al extraer", pero no dice explícitamente qué pasa con los ficheros ya extraídos: esto es lo observado aquí.
+
+### Cómo comprobarlo
+
+```bash
+git ls-files --eol            # i/ = índice, w/ = árbol de trabajo, attr/ = atributos que aplican
+git check-attr eol -- <ruta>  # qué valor de eol tiene una ruta
+git add --renormalize .       # tras cambiar atributos: muestra en git status lo que se normalizaría
+```
+
+### Errores típicos
+
+- Confiar en `core.autocrlf`: es configuración local, cada uno tiene la suya y no viaja con el repositorio.
+- Añadir `* text=auto` a un repositorio que ya tiene ficheros con CRLF en el índice y no renormalizar: `text=auto` no los toca.
+- Forzar `eol=lf` en todo y pelearse con editores de Windows que no lo respetan.
+- Pensar que el `.gitattributes` corrige solo los ficheros ya extraídos.
+
+## Globalización invariante
+
+> Añadido con el change `add-container-build`. Decisión registrada en [ADR 0001](../adr/0001-globalizacion-invariante.md). **Verificado**: 2026-10-31 contra Microsoft Learn y el documento de diseño del runtime (enlaces en Referencias), y con tests en este repositorio.
+
+### Qué es
+
+La **globalización** es todo lo que depende de la cultura: cómo se escriben números y fechas, cómo se comparan y ordenan textos, mayúsculas y minúsculas, nombres de zonas horarias. .NET obtiene esos datos de **ICU** (International Components for Unicode), una biblioteca que en Linux viene del sistema operativo y en Windows también está integrada.
+
+El **modo de globalización invariante** hace que la aplicación funcione **sin datos de cultura**: todo se comporta como la cultura invariante (similar al inglés, sin país), y .NET no necesita ICU. Se activa con la propiedad de MSBuild `InvariantGlobalization`, con `System.Globalization.Invariant` en `runtimeconfig.json` o con la variable `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT`.
+
+Según el documento de diseño del runtime, en modo invariante:
+
+- los números y las fechas usan siempre el formato de la cultura invariante (el separador decimal es siempre `.`);
+- `Compare`, `IndexOf` y `LastIndexOf` son **siempre ordinales**, no lingüísticas.
+
+### `PredefinedCulturesOnly`: por qué `es-ES` lanza una excepción
+
+Desde .NET 6, en modo invariante y por defecto, **no se puede crear ninguna cultura salvo la invariante** (`PredefinedCulturesOnly = true`, según Microsoft Learn). Así, `CultureInfo.GetCultureInfo("es-ES")` lanza `CultureNotFoundException` en lugar de devolver una "cultura española" con datos falsos. Es un fallo explícito, mejor que un formato engañoso. Al publicar el Runner, el `runtimeconfig.json` incluye las dos opciones:
+
+```json
+"System.Globalization.Invariant": true,
+"System.Globalization.PredefinedCulturesOnly": true
+```
+
+### Por qué lo activamos
+
+Las imágenes de contenedor *chiseled* de .NET no incluyen ICU, y su configuración define `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true` (observado en la configuración de la imagen; Microsoft Learn explica que las imágenes optimizadas por tamaño solo funcionan con apps en modo invariante). Sin hacer nada, la solución se comportaría de tres formas: Windows con la cultura de la máquina, los tests en la imagen SDK con ICU de Ubuntu y la imagen final en modo invariante. Activándolo en `Directory.Build.props`, los tres entornos se comportan igual. Las alternativas descartadas (imagen `-extra` con ICU, o imagen sin *chiseled*) están en el ADR.
+
+### Qué se observó en la práctica
+
+En este equipo, cuya cultura es `es-ES`, los tests de `tests/Sandbox.Scenarios.Tests/GlobalizationTests.cs`:
+
+| | Con `InvariantGlobalization` | Sin la propiedad |
+|---|---|---|
+| `1234.5.ToString("N2", CultureInfo.CurrentCulture)` | `1,234.50` | `1.234,50` |
+| `CultureInfo.GetCultureInfo("es-ES")` | `CultureNotFoundException` | Devuelve la cultura, sin error |
+
+Los dos tests fallan al quitar la propiedad: protegen la decisión.
+
+### Qué implica para el proyecto
+
+- El dominio de la fase 3 **no puede depender de la cultura de la máquina**. Importes, fechas y textos dirigidos al LLM se formatean de forma explícita (formatos fijos, ISO 8601).
+- Las comparaciones de texto son ordinales. Si algún escenario necesitara reglas lingüísticas, habría que revisar el ADR con un change propio.
+- La imagen *chiseled* tampoco trae tzdata; si alguna vez hacen falta zonas horarias con nombre, habrá que resolverlo aparte.
+
+### Errores típicos
+
+- Formatear con la cultura actual y que los tests pasen en una máquina y fallen en otra o en el contenedor.
+- Usar una imagen *chiseled* sin activar el modo invariante en el proyecto: funciona, pero los tests (con ICU) prueban otro comportamiento.
+- Esperar que `new CultureInfo("es-ES")` funcione "a medias" en modo invariante: con `PredefinedCulturesOnly`, lanza una excepción.
+
 ## Referencias
 
 - Resumen de `global.json`: <https://learn.microsoft.com/dotnet/core/tools/global-json>
@@ -320,3 +438,7 @@ El `.editorconfig` desactiva `CA1707` solo para `tests/`. Se comprobó que es ne
 - Plantillas de `dotnet new` (incluye `globaljson --test-runner`): <https://learn.microsoft.com/dotnet/core/tools/dotnet-new-sdk-templates>
 - Documentación de xUnit v3 y de Microsoft.Testing.Platform: **no consultada directamente**; lo descrito sale de la documentación de `global.json` y de las pruebas realizadas en este repositorio.
 - Comportamiento de `.gitignore` y de `git check-ignore`: documentación de Git, **no verificada** en esta sesión.
+- Atributos de Git (`text`, `eol`, `--renormalize`, precedencia): <https://git-scm.com/docs/gitattributes> (consultado el 2026-10-31).
+- Opciones de globalización del runtime (`InvariantGlobalization`, `PredefinedCulturesOnly`): <https://learn.microsoft.com/dotnet/core/runtime-config/globalization>
+- Imágenes de contenedor de .NET (las optimizadas por tamaño no incluyen ICU): <https://learn.microsoft.com/dotnet/core/docker/container-images>
+- Diseño del modo invariante (formato, comparaciones ordinales): <https://github.com/dotnet/runtime/blob/main/docs/design/features/globalization-invariant-mode.md>; el documento no menciona los cambios de versiones recientes, así que solo se citan de él el formato y las comparaciones.

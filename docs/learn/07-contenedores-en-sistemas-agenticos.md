@@ -1,6 +1,6 @@
 # 7. Contenedores en sistemas agénticos
 
-> **Estado**: documento base, escrito **antes** de implementar (fase 1). Las mediciones de velocidad están por rellenar con datos reales. **Verificado**: 2026-10-31 contra Microsoft Learn lo que se cita con enlace; lo demás se marca **(no verificado)**.
+> **Estado**: actualizado con el change `add-container-build` (fase 1). La imagen, la etapa de tests y el servicio `runner` ya existen, y este documento describe lo implementado y lo medido. La CI y la medición en otro equipo llegan con `add-ci-pipeline`; la gestión real del secreto, en la fase 2. **Verificado**: 2026-10-31 contra Microsoft Learn, la documentación de Docker y el registro de MCR lo que se cita con enlace, y con pruebas reales en este repositorio; lo demás se marca **(no verificado)**.
 
 ## Por qué contenerizar este proyecto
 
@@ -45,36 +45,134 @@ Las imágenes *chiseled* de Ubuntu llevan solo lo imprescindible para .NET: **no
 
 **Decisión del proyecto (criterio propio)**: usar `Dockerfile` explícito, porque el objetivo es aprender y necesitamos la etapa `test`. La vía del SDK queda como comparación posible.
 
-## Diseño previsto
+## Cómo está implementado
+
+Los ficheros son [`Dockerfile`](../../Dockerfile), [`.dockerignore`](../../.dockerignore) y [`compose.yaml`](../../compose.yaml), en la raíz. Las decisiones y su porqué están en el `design.md` del change `add-container-build` (archivado en `openspec/changes/archive/`) y en la spec `container-build` (`openspec/specs/container-build/spec.md`).
 
 ### Etapas del `Dockerfile`
 
 ```
- sdk (fijada) > restore > build > test > publish > final
-                (cache)            ^                (runtime, no root)
-                                   docker build --target test
+ sdk:10.0.403-noble@sha256:...
+ +-----------+     +---------+     +----------+
+ |  restore  | --> |  build  | --> |   test   |  <-- docker build --target test .
+ | (con red) |     |         |     | (sin red)|
+ +-----------+     +---------+     +----------+
+                        |
+                        v
+                   +---------+
+                   | publish |
+                   +---------+
+                        |  COPY /app
+                        v
+ runtime:10.0.14-noble-chiseled@sha256:...
+ +--------------------------------------------+
+ | final: /app, usuario 1654,                 |
+ | ENTRYPOINT ["dotnet", "Sandbox.Runner.dll"]|
+ +--------------------------------------------+
 ```
 
-- `restore`: copia solo los ficheros de dependencias y restaura. Es la capa más cacheable.
-- `test`: ejecuta los tests **sin red** (usan un `IChatClient` falso). Es lo que ejecuta la CI.
-- `final`: imagen de runtime, usuario no root, punto de entrada de la app.
+- **`restore`**: copia `global.json`, `Directory.Build.props`, `Directory.Packages.props`, el `.slnx` y **cada `.csproj` en su ruta, con una línea por proyecto**, y restaura la solución. Es la única etapa con red, y también donde NuGet audita vulnerabilidades.
+- **`build`**: copia `.editorconfig` (solo afecta a la compilación, así que no invalida la restauración), `src/` y `tests/`, y compila una vez en `Release`.
+- **`test`**: `RUN --network=none dotnet test --no-build`. Es lo que ejecuta `docker build --target test .` y, después, la CI.
+- **`publish`**: publica el Runner reutilizando lo compilado (`--no-build`): lo que se prueba es exactamente lo que se publica.
+- **`final`**: runtime *chiseled*, `/app` con lo publicado y `ENTRYPOINT ["dotnet", "Sandbox.Runner.dll"]` en forma *exec* (el proceso es el PID 1 y recibe las señales).
 
-### Compose
+### Por qué un `COPY` por proyecto
 
-- `runner`: servicio *one-shot* para ejecutar escenarios: `docker compose run --rm runner --scenario create-order`.
-- `dashboard` (perfil opcional): contenedor del **Aspire Dashboard** autónomo, que recibe telemetría OTLP. Microsoft aclara que es una herramienta de desarrollo, no de monitorización en producción, y que por defecto exige un token de acceso.
+`COPY` con comodines no conserva las carpetas, así que para que `restore` sea una capa cacheable hay que copiar cada `.csproj` a su ruta. Cuesta una línea por proyecto nuevo, pero **olvidarla falla de forma explícita**: al restaurar la solución, `dotnet restore` se queja de que no encuentra el proyecto (`error MSB3202: The project file ".../Sandbox.Agents.Tests.csproj" was not found`, observado). BuildKit tiene `COPY --parents`, que conserva la estructura, pero es una extensión que no se ha comprobado en Podman.
+
+### Contexto de build: `.dockerignore` de lista blanca
+
+El **contexto** es lo que el cliente envía al motor antes de construir. El `.dockerignore` del proyecto **excluye todo** (`*`) y vuelve a incluir solo lo necesario (`!src/`, `!tests/`, los ficheros raíz de build). Después excluye otra vez `**/bin/`, `**/obj/` y `**/TestResults/`. Un fichero nuevo en la raíz, sea un `.env` o una carpeta de secretos con otro nombre, queda fuera **por defecto**. La alternativa habitual, una lista negra (`bin/`, `.git`, `.env`...), falla de forma insegura: lo que no se previó, entra.
+
+Observado: con los `bin/` y `obj/` reales del repo presentes, el contexto ocupó **10,23 kB**.
+
+### Tests sin red: `RUN --network=none`
+
+`--network=none` en una instrucción `RUN` deja ese paso sin red. Está documentado tanto en Docker como en el manual de `Containerfile` de Buildah y Podman ([Containerfile(5)](https://man.archlinux.org/man/Containerfile.5.en)). Es más fino que `docker build --network=none`, que dejaría sin red también la restauración.
+
+Observado: en un paso con `--network=none`, `getent hosts api.nuget.org` falla con código 2; en la misma imagen con red, resuelve. Los tests pasan sin red.
+
+### Imágenes base fijadas por etiqueta y digest
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:de4fe90a...
+```
+
+- **Se fija el digest de la lista de manifiestos multiplataforma** (no el del manifiesto `amd64`), para que el mismo `Dockerfile` sirva en otras arquitecturas.
+- **Manda el digest**: al descargar por `etiqueta@digest`, la imagen queda en local como `mcr.microsoft.com/dotnet/sdk:<none>`. La etiqueta solo informa a quien lee el `Dockerfile` (observado).
+- **La etiqueta `10.0` apunta a `noble`** (Ubuntu 24.04): mismo digest que `10.0-noble` en MCR el 2026-10-31. Existe también `resolute`, que no es el valor por defecto.
+- **Actualizar** es manual hasta que exista Dependabot (`add-ci-pipeline`): consultar la última versión en `releases.json` de .NET, obtener el digest del registro de MCR y cambiar etiqueta y digest a la vez.
+
+### Imagen final *chiseled*
+
+| Variante del runtime (amd64, comprimida, 2026-10-31) | Tamaño |
+|---|---|
+| `noble` | 81 MB |
+| `noble-chiseled` (**la elegida**) | 42 MB |
+| `noble-chiseled-extra` (con ICU y tzdata) | 57 MB |
+| `alpine` | 41 MB |
+
+- **Usuario no root**: la imagen base ya trae `User=1654` (`APP_UID`), así que no hace falta `USER` en el `Dockerfile`.
+- **Globalización**: la base *chiseled* define `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true`. Para que local, tests e imagen se comporten igual, el proyecto activa `InvariantGlobalization` en toda la solución ([ADR 0001](../adr/0001-globalizacion-invariante.md); detalle en el documento 8).
+- **Sin shell**: no se puede hacer `docker run -it ... sh`. Para inspeccionarla:
+  - `docker image inspect` (usuario, entorno, punto de entrada) y `docker history --no-trunc` (instrucciones);
+  - `docker create` + `docker export` para listar o extraer su sistema de ficheros como un `tar`;
+  - la imagen de la etapa `build` (`docker build --target build`), que sí tiene shell y el mismo código.
+- **Contenido observado**: 322 ficheros. En `/app`, solo los ensamblados publicados, sus `.pdb`, `deps.json`, `runtimeconfig.json` y el *apphost*. Ningún fuente ni test, y sin SDK.
+
+### Disco: qué ocupa y cómo se limpia
+
+La imagen de la etapa `test` lleva el SDK y ronda **1,4 GB** en local; la final, la base de runtime más unos pocos KB. Para recuperar espacio ([documentación de Docker](https://docs.docker.com/engine/manage-resources/pruning/)):
+
+- `docker image prune` borra las imágenes **colgantes** (sin repositorio ni etiqueta y sin contenedor que las use), como la imagen `test` anterior cuando se reconstruye. Las bases descargadas por digest no son colgantes: conservan el nombre del repositorio (observado con `docker image ls --filter dangling=true`).
+- `docker builder prune` borra la caché de BuildKit que no se está usando. El siguiente build será "en frío".
+- `docker system df` muestra cuánto ocupa cada cosa antes de borrar.
+
+### Compose: el servicio `runner`
+
+El fichero se llama `compose.yaml`, el nombre canónico según la documentación de Docker; `docker-compose.yml` se admite solo por compatibilidad. Hoy define un único servicio:
+
+```bash
+docker compose run --build --rm runner   # construye la etapa final si hace falta, ejecuta y borra el contenedor
+```
+
+- **One-shot**: `run --rm` ejecuta el Runner una vez, devuelve su código de salida y no deja el contenedor creado.
+- **`--build`**: sin él, compose reutiliza la imagen `agentic-sandbox-runner:local` si ya existe, aunque el código haya cambiado. Con él, reconstruye antes de ejecutar (y gracias a la caché, si nada cambió, tarda poco).
+- **`--scenario`** llegará con los escenarios de la fase 4; hoy el Runner no recibe argumentos y devuelve 0.
+- **Panel de trazas** (perfil opcional `dashboard`, Aspire Dashboard autónomo): fase 5. Microsoft aclara que es una herramienta de desarrollo, no de monitorización en producción, y que por defecto exige un token de acceso.
+
+### Endurecimiento del `runner`
+
+Todo está declarado en `compose.yaml` y comprobado con `docker inspect` sobre un contenedor real:
+
+| Opción en `compose.yaml` | Qué limita | Comprobado en `docker inspect` |
+|---|---|---|
+| (imagen base) usuario `1654` | El proceso no es root | `User=1654` |
+| `read_only: true` | No se puede escribir en el sistema de ficheros raíz | `ReadonlyRootfs=true` |
+| `cap_drop: [ALL]` | Sin capacidades del kernel (ni las que Docker da por defecto) | `CapDrop=["ALL"]` |
+| `security_opt: [no-new-privileges:true]` | Ningún proceso puede ganar privilegios (por ejemplo, con binarios *setuid*) | `SecurityOpt=["no-new-privileges:true"]` |
+| `mem_limit: 256m`, `cpus: 1.0` | Un fallo o un bucle no se come el equipo | `Memory=268435456`, `NanoCpus=1000000000` |
+| `network_mode: none` | Sin red, solo la interfaz local | `NetworkMode=none` |
+
+El Runner actual funciona con todas estas restricciones (código 0, sin avisos de escritura). Los límites de memoria y CPU son valores de partida: la fase 2 los revisará con carga real. La red se abrirá en la fase 2, solo para llegar a la API del modelo, y ese cambio quedará visible en su propio change.
+
+Pendiente: el **escaneo de la imagen** en busca de vulnerabilidades llega con la CI (`add-ci-pipeline`); la herramienta está por decidir **(no verificado)**.
 
 ### Secretos
 
 El repositorio es público, así que:
 
 - La API key **nunca** va en la imagen, el `Dockerfile` (`ARG`/`ENV`), `compose` ni un `.env` versionado. Solo se versiona `.env.example`.
-- Opción recomendada: secreto de compose basado en **fichero** (`secrets/deepseek_api_key`, ignorado por Git), montado en `/run/secrets/` y leído con un proveedor de configuración por ficheros. A diferencia de una variable de entorno, no aparece en `docker inspect`. **(No verificado)** en esta sesión: la ruta de montaje y el proveedor concreto.
+- Opción recomendada: secreto de compose basado en **fichero** (`secrets/deepseek_api_key`, ignorado por Git), montado en `/run/secrets/` y leído con un proveedor de configuración por ficheros. A diferencia de una variable de entorno, no aparece en `docker inspect`. **(No verificado)** en esta sesión: la ruta de montaje y el proveedor concreto (fase 2).
 - Alternativa simple: la variable de entorno `DeepSeek__ApiKey`.
 
-### Endurecimiento (a validar en la práctica)
+**Lo observado en la fase 1 sobre los secretos de compose**: si un servicio declara un secreto cuyo fichero **no existe**, `docker compose run` solo muestra un aviso (`secret file ... does not exist`), y el contenedor arranca y termina con 0. Compose **no** protege contra una clave ausente. Por eso:
 
-Usuario no root, sistema de ficheros raíz de solo lectura, `cap_drop: ALL`, `no-new-privileges`, límites de memoria y CPU, `.dockerignore` estricto, imágenes fijadas y escaneo de la imagen en CI. **(No verificado)** el conjunto exacto de opciones y la herramienta de escaneo: se contrastarán al implementarlo.
+- en la fase 1 el `runner` no declara ningún secreto: declararlo sin usarlo daría una falsa sensación de control;
+- en la fase 2, la propia aplicación debe fallar con un error claro si no encuentra la clave.
+
+**Comprobado en la fase 1**: con un fichero canario en `secrets/` y un `.env` con valores conocidos en la raíz del repo, ninguno de los dos llegó a la imagen de test ni a la final, ni por nombre ni por contenido. Además, el historial y las variables de entorno de la imagen final solo contienen lo que hereda de la imagen base.
 
 ### CI
 
@@ -135,19 +233,31 @@ Consecuencias para el flujo de trabajo:
 - **Desarrollo diario nativo con `dotnet`.** Docker se usa para construir la imagen y verificar antes de dar algo por terminado.
 - **La CI es la referencia real** sobre el mismo `Dockerfile`: los runners de GitHub no gastan RAM local.
 - **El experimento de velocidad se mide en otro equipo.** En este, la medición reflejaría el límite de memoria y la CPU de bajo consumo, no el coste de usar contenedores. Si se mide aquí de todas formas, se anota como tal.
-- Con la RAM tan justa, un `docker build` con VS Code y el navegador abiertos puede provocar paginación a disco. **(No medido todavía.)** Se medirá en la fase 1 al construir la primera imagen real.
+- Con la RAM tan justa, un `docker build` deja el equipo entre 300 y 650 MB libres (medido en la fase 1; tabla del experimento más abajo). Con VS Code y el navegador abiertos es probable que se pagine a disco; esto no se midió.
 
-### Experimento (fase 1): resultados por rellenar
+### Experimento (fase 1): resultados en este equipo
 
-Medir en el equipo de desarrollo, tres repeticiones cada una:
+Medido el 2026-10-31 en la Surface Go 2 descrita arriba, con Docker Desktop arrancado. El plan era hacer tres repeticiones de cada caso; **no se hicieron**. El escenario clave ("tras cambiar un `.cs`") se midió dos veces (en el explore y al implementar) y el resto una sola vez. Los tiempos incluyen todo el comando. La memoria se muestreó cada medio segundo: pico del proceso `vmmemWSL` (la máquina virtual de WSL2, limitada a 3 GB) y mínimo de RAM libre en Windows.
 
-| Escenario | En frío | En caliente | Observaciones |
-|-----------|---------|-------------|---------------|
-| `dotnet test` nativo | _por medir_ | _por medir_ | |
-| `docker build --target test` | _por medir_ | _por medir_ | |
-| Dev container (opcional) | _por medir_ | _por medir_ | |
+| Escenario | Tiempo | Pico de la VM | RAM libre mínima |
+|---|---|---|---|
+| Descarga de las dos imágenes base (342 + 42 MB comprimidas) | 87,5 s | 2,1 GB | 865 MB |
+| `docker build --target test`, en frío (bases ya descargadas) | 95,9 s | 2,5 GB | 517 MB |
+| `docker build --target test`, sin cambios | 4,3 s / 4,5 s | 2,4 GB | 472 MB |
+| `docker build --target test`, tras cambiar un `.cs` | **44,0 s / 43,5 s** | 2,5 GB | 426 MB |
+| `dotnet test` nativo, sin cambios | 29,9 s | (Docker arrancado) | 336 MB |
+| `dotnet test` nativo, tras cambiar un `.cs` | **35,6 s** | (Docker arrancado) | 285 MB |
+| Dev container | no medido | | |
 
-Criterio de decisión (propio): si el ciclo de tests en contenedor tarda menos del doble que el nativo y no estorba, merece mantenerlo como flujo por defecto. Si no, queda solo como referencia y para la CI. Se anotarán aquí los resultados y la conclusión.
+Desglose del build en frío: extraer las capas del SDK la primera vez (~31 s; ocurre aunque la imagen ya esté descargada), restaurar (17,5 s), compilar (24,8 s) y ejecutar los tests (7,2 s). Tras cambiar código, el `restore` sale de la caché y solo se repiten el build (~27 s) y los tests (~7 s).
+
+**Cómo leerlo:**
+
+- La comparación justa es **tras cambiar código**: el contenedor tarda **×1,2** lo que tarda el nativo (43,5–44,0 s frente a 35,6 s).
+- "Sin cambios" no es comparable: Docker no hace nada si nada cambió (4 s), mientras que `dotnet test` siempre ejecuta los tests (30 s).
+- El nativo se midió **con Docker arrancado** y el equipo a menos de 340 MB libres, así que está penalizado. Sin Docker sería algo más rápido; no se midió.
+
+**Conclusión, según el criterio propio** (menos del doble y que no estorbe): el ciclo en contenedor tarda menos del doble que el nativo, pero en este equipo **sí estorba**. Docker ocupa unos 2,5 GB y deja el equipo entre 300 y 650 MB libres, así que no puede quedarse arrancado mientras se edita. Se mantiene el flujo **híbrido**: `dotnet` local para iterar, y `docker build --target test` para dar algo por terminado. La medición en un equipo con más memoria queda para `add-ci-pipeline`.
 
 ## Contenedor y seguridad agéntica
 
@@ -163,6 +273,12 @@ Criterio de decisión (propio): si el ciclo de tests en contenedor tarda menos d
 - Ejecutar como root.
 - Copiar todo el código antes del `restore`: se pierde la caché.
 - Olvidar el `.dockerignore`: se cuelan `bin/`, `obj/`, `.git` o, peor, un `.env`.
+- Usar un `.dockerignore` de lista negra y confiar en que alguien se acuerde de añadir cada fichero sensible nuevo.
+- Copiar los `obj/` del anfitrión al contenedor: `project.assets.json` lleva rutas de Windows y el build falla o mezcla artefactos.
+- Añadir un proyecto a la solución y no su `COPY` en la etapa `restore` (aquí falla con `MSB3202`, que al menos es explícito).
+- Fijar solo la etiqueta (`10.0.14-noble-chiseled`) sin digest: Microsoft puede reconstruirla con parches del sistema operativo.
+- Intentar `docker run -it <imagen> sh` en una imagen *chiseled*: no tiene shell; hay que inspeccionarla desde fuera.
+- Cortar la salida de `docker build` con `| Select-Object -First N` en PowerShell: se pierde el código de salida real (pasó en este proyecto al verificar los escenarios negativos).
 - Saltos de línea CRLF en scripts o `Dockerfile`: fallan en Linux (`/bin/sh^M`). Por eso la fase 1 incluye `.gitattributes` con `eol=lf`.
 - Montar el código desde una carpeta de Windows y quejarse de la lentitud.
 - Creer que el contenedor es una frontera de seguridad completa.
@@ -175,5 +291,10 @@ Criterio de decisión (propio): si el ciclo de tests en contenedor tarda menos d
 - Tutorial de Dockerfile para .NET (multi-etapa, digest): <https://learn.microsoft.com/dotnet/core/docker/build-container>
 - Introducción a .NET y Docker (imágenes, *chiseled*): <https://learn.microsoft.com/dotnet/core/docker/introduction>
 - Aspire Dashboard autónomo: <https://learn.microsoft.com/dotnet/core/diagnostics/observability-otlp-example>
+- Imágenes de contenedor de .NET (variantes, globalización): <https://learn.microsoft.com/dotnet/core/docker/container-images>
+- Limpiar objetos de Docker (`prune`): <https://docs.docker.com/engine/manage-resources/pruning/>
+- Nombre canónico del fichero de compose: <https://docs.docker.com/compose/intro/compose-application-model/>
+- `RUN --network` en Buildah y Podman: [Containerfile(5)](https://man.archlinux.org/man/Containerfile.5.en)
+- Versiones de .NET 10: `https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json`; etiquetas y digests: API del registro de MCR (`https://mcr.microsoft.com/v2/dotnet/<repo>/tags/list`)
 - Dev containers con .NET: <https://learn.microsoft.com/dotnet/architecture/microservices/net-core-net-framework-containers/official-net-docker-images>
 - Condiciones de licencia de Docker Desktop, WSL2 y herramientas de escaneo: **no verificado**; comprobar la política de tu organización antes de instalar.

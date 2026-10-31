@@ -1,0 +1,17 @@
+# Ejecución local one-shot del Runner:
+#   docker compose run --build --rm runner
+services:
+  runner:
+    build:
+      context: .
+      target: final
+    image: agentic-sandbox-runner:local
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 1.0
+    # Sin red ni secretos hasta que la fase 2 conecte con DeepSeek y lea la API key
+    network_mode: none

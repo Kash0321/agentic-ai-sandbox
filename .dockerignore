@@ -1,0 +1,15 @@
+# Lista blanca: se excluye todo y se vuelve a incluir solo lo necesario para construir.
+# Un fichero nuevo en la raíz (un .env, una carpeta de secretos) queda fuera por defecto.
+*
+!global.json
+!Directory.Build.props
+!Directory.Packages.props
+!AgenticSandbox.slnx
+!.editorconfig
+!src/
+!tests/
+
+# Artefactos locales dentro de lo incluido: nunca deben llegar al build
+**/bin/
+**/obj/
+**/TestResults/

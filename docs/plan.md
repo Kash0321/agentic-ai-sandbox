@@ -3,7 +3,7 @@
 | Fase | Nombre | Entregables | Criterio de salida |
 |------|--------|-------------|--------------------|
 | 0 | Bootstrap y documentación | `README.md`, `AGENTS.md`, este plan, `.gitignore`, documentación de aprendizaje base (`docs/learn/`) | Docs revisados y aprobados |
-| 1 | Setup de solución (tres changes, ver más abajo) | `openspec init` + `openspec/config.yaml` (contexto y reglas por artefacto), `global.json` (.NET 10), `Directory.Build.props` (nullable, warnings as errors), `Directory.Packages.props`, `.slnx`, proyectos vacíos, `.gitattributes` (`eol=lf`), `Dockerfile` multi-etapa (restore, build, test, publish y runtime sin root), `.dockerignore`, `docker-compose.yml`, CI sobre el mismo `Dockerfile` (build y test en contenedor), actualizaciones automáticas de dependencias con Dependabot, medición nativo frente a contenedor | `dotnet build` y `dotnet test` verdes, `docker build --target test` verde en CI y check de CI exigido en el ruleset de `main` |
+| 1 | Setup de solución (tres changes, ver más abajo) | `openspec init` + `openspec/config.yaml` (contexto y reglas por artefacto), `global.json` (.NET 10), `Directory.Build.props` (nullable, warnings as errors), `Directory.Packages.props`, `.slnx`, proyectos vacíos, `.gitattributes` (`eol=lf`), `Dockerfile` multi-etapa (restore, build, test, publish y runtime sin root), `.dockerignore`, `compose.yaml`, CI sobre el mismo `Dockerfile` (build y test en contenedor), actualizaciones automáticas de dependencias con Dependabot, medición nativo frente a contenedor | `dotnet build` y `dotnet test` verdes, `docker build --target test` verde en CI y check de CI exigido en el ruleset de `main` |
 | 2 | Infraestructura base | Host de consola, DI, configuración (User Secrets), logging, `IChatClient` hacia DeepSeek (`Microsoft.Extensions.AI.OpenAI` con endpoint personalizado), cliente falso para tests | "Hola mundo" contra DeepSeek, también dentro del contenedor con la API key como secreto por fichero, y test equivalente con cliente falso |
 | 3 | Servicios dummy | Dominio (Order, Customer, Inventory), servicios in-memory, Commands/Queries, inyector de fallos configurable | Tests de dominio, incluidos fallos y transiciones inválidas |
 | 4 | Pipeline agéntico | Tools (`AIFunction`) con `ToolResult<T>`, `UseFunctionInvocation`, Runner, system prompt, trazas | Escenario feliz end-to-end (p. ej. crear pedido) |
@@ -21,8 +21,8 @@ La fase 1 se divide en tres changes de OpenSpec, para que cada PR sea pequeño y
 
 | Change | Contenido | Estado |
 |--------|-----------|--------|
-| `setup-dotnet-solution` | `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `.gitignore`, solución `.slnx`, proyectos de código y de tests, test de reglas de capas | Verificado y archivado (pendiente de merge en `main`) |
-| `add-container-build` | `Dockerfile` multi-etapa, `.dockerignore`, `docker-compose.yml`, `.gitattributes` | Pendiente |
+| `setup-dotnet-solution` | `global.json`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`, `.gitignore`, solución `.slnx`, proyectos de código y de tests, test de reglas de capas | Fusionado en `main` |
+| `add-container-build` | `Dockerfile` multi-etapa, `.dockerignore`, `compose.yaml`, `.gitattributes`, globalización invariante (ADR 0001) | Implementado; pendiente de verificar, archivar y fusionar |
 | `add-ci-pipeline` | Workflow de CI sobre el mismo `Dockerfile`, Dependabot, check obligatorio en el ruleset de `main`, medición nativo frente a contenedor | Pendiente |
 
 Los entregables de la tabla de fases se reparten entre ellos; el criterio de salida de la fase se cumple cuando los tres están hechos.
