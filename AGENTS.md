@@ -35,7 +35,7 @@ Guía de contexto y comportamiento para cualquier asistente de IA que trabaje en
 - Inyección de dependencias por constructor; sin service locator ni estáticos con estado.
 - Logging con `ILogger<T>` y plantillas de mensaje (sin interpolación). No registres secretos ni payloads completos del LLM por defecto.
 - Un tipo público por fichero; el nombre del fichero coincide con el tipo.
-- Tests: xUnit, patrón Arrange/Act/Assert, nombres `Metodo_Condicion_Resultado`.
+- Tests: xUnit v3 sobre Microsoft.Testing.Platform (se habilita en `global.json`; los proyectos de tests son ejecutables y declaran `<Using Include="Xunit" />`), patrón Arrange/Act/Assert, nombres `Metodo_Condicion_Resultado`. Cada proyecto de tests tiene al menos un test: con ese ejecutor, un proyecto sin tests hace fallar `dotnet test`.
 
 ## 4. Reglas estrictas para Tools (`AIFunction`)
 

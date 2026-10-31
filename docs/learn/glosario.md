@@ -60,3 +60,21 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **Rootless / no root** | Contenedor que corre con un usuario sin privilegios |
 | **Volumen** | Almacenamiento que gestiona el motor de contenedores, independiente del sistema de ficheros del anfitrión |
 | **WSL2** | Subsistema de Windows para Linux; base habitual de Docker Desktop en Windows |
+| **`.gitignore`** | Fichero con patrones de lo que Git no debe ofrecer para versionar; no protege lo que ya está versionado |
+| **`global.json`** | Fichero que indica qué SDK de .NET usa un repositorio y qué versiones acepta |
+| **Framework de destino (TFM)** | Versión de .NET para la que se compila una aplicación, por ejemplo `net10.0` |
+| **Runtime de .NET** | Componente que ejecuta una aplicación .NET ya compilada |
+| **`rollForward`** | Política de `global.json` que decide qué SDK usar cuando no está la versión exacta pedida |
+| **SDK de .NET** | Herramientas para compilar y probar (compilador, CLI, MSBuild); distinto del runtime y del framework de destino |
+| **`AnalysisLevel`** | Propiedad de MSBuild que fija con qué conjunto de reglas de análisis de código se trabaja (`<versión>-<modo>`); evita que un SDK nuevo añada reglas |
+| **Analizador (de código)** | Componente que inspecciona el código al compilar y emite diagnósticos: `CS` (compilador), `CA` (calidad) o `IDE` (estilo) |
+| **Central Package Management (CPM)** | Forma de declarar las versiones de los paquetes NuGet en un único fichero, `Directory.Packages.props`, sin versión en los `.csproj` |
+| **`Directory.Build.props`** | Fichero de MSBuild que aplica propiedades comunes a todos los proyectos de la carpeta y sus subcarpetas |
+| **Inversión de dependencias (capas)** | Organización en la que las dependencias apuntan hacia el dominio, de modo que este no conoce infraestructura como el LLM |
+| **Package source mapping** | Configuración de NuGet que indica de qué fuente se restaura cada paquete; da reproducibilidad y evita ciertos ataques de sustitución |
+| **Raíz de composición** | Único punto de una aplicación que conoce todas las capas y las ensambla (aquí, `Sandbox.Runner`) |
+| **`.slnx`** | Formato de solución en XML sencillo; es el que genera por defecto `dotnet new sln` desde .NET 10 |
+| **Microsoft.Testing.Platform (MTP)** | Ejecutor de tests moderno de .NET, alternativa al clásico VSTest; en el SDK 10 se habilita con `test.runner` en `global.json` |
+| **Test de arquitectura** | Test que comprueba reglas de estructura (por ejemplo, qué capa puede depender de cuál) en vez de comportamiento |
+| **Test de cableado** | Test mínimo que solo comprueba que el ensamblado bajo prueba está bien referenciado y se carga; marcador hasta que haya tests reales |
+| **xUnit v3** | Versión actual del marco de pruebas xUnit; sus proyectos de tests son ejecutables y se ejecutan con Microsoft.Testing.Platform |

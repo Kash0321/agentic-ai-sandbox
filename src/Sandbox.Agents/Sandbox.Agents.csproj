@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Sandbox.Application\Sandbox.Application.csproj" />
+    <ProjectReference Include="..\Sandbox.Domain\Sandbox.Domain.csproj" />
+  </ItemGroup>
+
+</Project>
