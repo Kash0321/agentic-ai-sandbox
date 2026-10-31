@@ -1,6 +1,6 @@
 # 4. Herramientas de Microsoft: qué problema resuelven y cómo
 
-> **Estado**: documento base. **Verificado**: 2026-10-31 contra Microsoft Learn. Versiones vistas en la documentación: `Microsoft.Extensions.AI.Abstractions` 10.10.x, `Microsoft.Agents.AI` 1.13.0. **Revisar versiones en la fase 1** al fijar `Directory.Packages.props`.
+> **Estado**: documento base. **Verificado**: 2026-10-31 contra Microsoft Learn. Versiones estables más recientes en NuGet a esa fecha: `Microsoft.Extensions.AI` (y `.Abstractions` y `.OpenAI`) 10.11.0, `OpenAI` 2.14.0, `Microsoft.Extensions.Hosting` 10.0.14, `Microsoft.Agents.AI` 1.27.0, `ModelContextProtocol` 2.3.0. **Corrección**: la primera versión de este documento citaba 10.10.x y 1.13.0, copiadas de páginas de referencia de Microsoft Learn que estaban desfasadas. Las versiones **no se leen de la documentación**: se comprueban en la fuente primaria (NuGet) al fijarlas, y se reverifican en cada fase (ver `AGENTS.md`, sección 11).
 
 ## El problema de fondo
 
