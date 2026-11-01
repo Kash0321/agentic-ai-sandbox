@@ -1,6 +1,6 @@
 # 7. Contenedores en sistemas agénticos
 
-> **Estado**: actualizado con el change `add-container-build` (fase 1). La imagen, la etapa de tests y el servicio `runner` ya existen, y este documento describe lo implementado y lo medido. La CI está implementada con `add-ci-pipeline` (detalle en el documento 9); la medición en un runner de GitHub queda pendiente hasta después de su merge, y la gestión real del secreto llega en la fase 2. **Verificado**: 2026-10-31 contra Microsoft Learn, la documentación de Docker y el registro de MCR lo que se cita con enlace, y con pruebas reales en este repositorio; lo demás se marca **(no verificado)**.
+> **Estado**: actualizado con el change `add-container-build` (fase 1). La imagen, la etapa de tests y el servicio `runner` ya existen, y este documento describe lo implementado y lo medido. La CI está implementada con `add-ci-pipeline` (detalle en el documento 9), y la medición en un runner de GitHub se hizo tras su merge. La gestión real del secreto llega en la fase 2. **Verificado**: 2026-10-31 contra Microsoft Learn, la documentación de Docker y el registro de MCR lo que se cita con enlace, y con pruebas reales en este repositorio; lo demás se marca **(no verificado)**.
 
 ## Por qué contenerizar este proyecto
 
@@ -267,21 +267,34 @@ Desglose del build en frío: extraer las capas del SDK la primera vez (~31 s; oc
 
 **Conclusión, según el criterio propio** (menos del doble y que no estorbe): el ciclo en contenedor tarda menos del doble que el nativo, pero en este equipo **sí estorba**. Docker ocupa unos 2,5 GB y deja el equipo entre 300 y 650 MB libres, así que no puede quedarse arrancado mientras se edita. Se mantiene el flujo **híbrido**: `dotnet` local para iterar, y `docker build --target test` para dar algo por terminado.
 
-### Medición en un runner de GitHub (pendiente)
+### Medición en un runner de GitHub
 
 `add-ci-pipeline` añade el workflow manual [`measure.yml`](../../.github/workflows/measure.yml). Mide en un mismo runner `ubuntu-24.04` los escenarios de la tabla anterior y escribe los tiempos, la versión de la imagen del runner, el SDK, las CPU y la memoria en el resumen de la ejecución. Se lanza con `gh workflow run measure.yml` y se sigue con `gh run watch`.
 
-**Todavía no se ha ejecutado.** Un workflow con `workflow_dispatch` solo se puede lanzar cuando está en la rama por defecto. Desde la rama del change, GitHub respondió `HTTP 404: workflow measure.yml not found on the default branch`. La tabla se completará tras el merge, como una sola medición:
+Un workflow con `workflow_dispatch` solo se puede lanzar cuando está en la rama por defecto. Desde la rama del change, GitHub respondió `HTTP 404: workflow measure.yml not found on the default branch`, así que la medición se hizo después del merge.
 
-| Escenario | Runner de GitHub |
-|---|---|
-| Descarga de las imágenes base | pendiente |
-| `dotnet test` nativo en frío (con restauración) | pendiente |
-| `dotnet test` nativo tras cambiar un `.cs` | pendiente |
-| `docker build --target test` en frío (`--no-cache`) | pendiente |
-| `docker build --target test` tras cambiar un `.cs` | pendiente |
+**Medido el 2026-10-31, una sola vez** (run 41227837734):
+- runner: imagen `ubuntu24` 20261026.354.1, 4 CPU y 15 GB de RAM;
+- SDK 10.0.403 y Docker 28.0.4.
 
-Un dato indirecto que ya existe: en la CI, el job `test` (con su caché de GitHub Actions) tardó 51 s en frío y 14 s sin cambios. No es comparable con la tabla anterior, porque incluye preparar el runner y la caché es distinta.
+La columna del equipo local repite, para comparar, la tabla anterior:
+
+| Escenario | Runner de GitHub | Surface Go 2 |
+|---|---|---|
+| Descarga de las imágenes base | 18,0 s | 87,5 s |
+| `dotnet test` nativo en frío (con restauración) | 17,2 s | no medido |
+| `dotnet test` nativo tras cambiar un `.cs` | **5,7 s** | 35,6 s |
+| `docker build --target test` en frío (`--no-cache`) | 14,4 s | 95,9 s |
+| `docker build --target test` tras cambiar un `.cs` | **8,0 s** | 43,5–44,0 s |
+
+**Cómo leerlo:**
+
+- **Tras cambiar código**, en el runner el contenedor tarda **×1,4** lo que tarda el nativo (8,0 s frente a 5,7 s). En la Surface era ×1,2, pero allí el nativo estaba penalizado por la memoria que ocupaba Docker.
+- **En frío**, el contenedor sale más rápido que el nativo (14,4 s frente a 17,2 s). No se ha investigado por qué, así que no se saca ninguna conclusión. Las dos cifras incluyen la restauración de paquetes, pero el nativo es además la primera ejecución de `dotnet` en ese runner.
+- El runner es entre **4 y 6 veces más rápido** que la Surface en todos los escenarios comparables. Con 4 CPU y 15 GB, Docker no compite por la memoria.
+- La CI en un PR tarda más que estos tiempos (`test`: 51 s en frío y 14 s sin cambios), porque incluye preparar el runner, descargar la caché de GitHub Actions y exportarla.
+
+**Conclusión, según el criterio propio** (menos del doble y que no estorbe): en un equipo con recursos suficientes, trabajar en contenedor cuesta **menos del doble** (×1,4 tras cambiar código) y **no estorba**. El experimento no descarta el flujo "solo contenedor" en un equipo así. En la Surface Go 2 sigue estorbando por la memoria, de modo que el proyecto mantiene el flujo **híbrido**. Es una sola medición en cada equipo: sirve para el orden de magnitud, no como cifra exacta.
 
 ## Contenedor y seguridad agéntica
 

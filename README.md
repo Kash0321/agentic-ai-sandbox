@@ -225,7 +225,7 @@ agentic-ai-sandbox/
 
 ## Estado
 
-Fase actual: **1 · Setup de solución**, último change (`add-ci-pipeline`). Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fase 1 (**Setup de solución**) completada. Siguiente: **fase 2 · Infraestructura base**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

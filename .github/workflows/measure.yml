@@ -45,6 +45,7 @@ jobs:
           measure "docker build --target test tras cambiar un .cs" docker build --target test --quiet .
           git checkout -- src/Sandbox.Runner/Program.cs
 
+          # Al resumen de la ejecución y también al registro: la API no devuelve el resumen
           {
             echo "## Nativo frente a contenedor"
             echo
@@ -54,4 +55,4 @@ jobs:
             echo "| Escenario | Segundos |"
             echo "|---|---|"
             printf '%s\n' "${results[@]}"
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
