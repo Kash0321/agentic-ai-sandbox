@@ -18,22 +18,49 @@ public sealed class FaultInjectorTests
 
         var token = TestContext.Current.CancellationToken;
 
-        var placing = injected.PlaceAsync("k1");
-        Assert.True(placing.IsCompleted);
-        var injectedPlace = await placing;
+        var injectedPlace = await Immediate(injected.PlaceAsync("k1"));
         var plainPlace = await plain.PlaceAsync("k1", "CUST-001", SalesHarness.Line("SKU-MUG-RED", 2));
 
         Assert.Equal(plainPlace.Value?.OrderId, injectedPlace.Value?.OrderId);
         Assert.Equal(plainPlace.Value?.Total, injectedPlace.Value?.Total);
         Assert.Equal(
             (await plain.Queries.GetStockAsync(new("SKU-MUG-RED"), token)).Value,
-            (await injected.GetStockAsync("SKU-MUG-RED")).Value);
+            (await Immediate(injected.GetStockAsync("SKU-MUG-RED"))).Value);
         Assert.Equal(
             (await plain.Queries.GetCustomerAsync(new("CUST-003"), token)).Value,
-            (await injected.GetCustomerAsync("CUST-003")).Value);
-        Assert.Equal((await plain.CancelAsync("k2", "ORD-0001")).Value?.Status, (await injected.CancelAsync("k2", "ORD-0001")).Value?.Status);
-        Assert.Equal((await plain.ShipAsync("k3", "ORD-0001")).Error, (await injected.ShipAsync("k3", "ORD-0001")).Error);
+            (await Immediate(injected.GetCustomerAsync("CUST-003"))).Value);
+        Assert.Equal(
+            (await plain.Queries.GetOrderAsync(new("ORD-0001"), token)).Value?.Status,
+            (await Immediate(injected.GetOrderAsync("ORD-0001"))).Value?.Status);
+        Assert.Equal(
+            (await plain.CancelAsync("k2", "ORD-0001")).Value?.Status,
+            (await Immediate(injected.CancelAsync("k2", "ORD-0001"))).Value?.Status);
+        Assert.Equal(
+            (await plain.ShipAsync("k3", "ORD-0001")).Error,
+            (await Immediate(injected.ShipAsync("k3", "ORD-0001"))).Error);
         Assert.Empty(injected.Logger.Entries);
+    }
+
+    [Fact]
+    public async Task Rules_WhenAnEarlierRuleFails_StillAdvanceTheLaterRulesCount()
+    {
+        var harness = new FaultHarness(
+            Rule(FaultOperations.GetOrder, FaultTrigger.FirstCalls, count: 1),
+            Rule(FaultOperations.GetOrder, FaultTrigger.FirstCalls, count: 2));
+        await harness.PlaceAsync("k1");
+
+        // Si la regla 1 no contara la llamada en la que falla la regla 0, también fallaría la tercera.
+        var pattern = await FailurePatternAsync(3, async () => !(await harness.GetOrderAsync("ORD-0001")).IsSuccess);
+
+        Assert.Equal([true, true, false], pattern);
+        Assert.Equal([0, 1], harness.Logger.Entries.Select(entry => entry.Properties["Rule"]));
+    }
+
+    // Sin latencia, la llamada decorada termina sin esperar: la tarea ya está completada al volver.
+    private static Task<T> Immediate<T>(Task<T> call)
+    {
+        Assert.True(call.IsCompleted);
+        return call;
     }
 
     [Fact]

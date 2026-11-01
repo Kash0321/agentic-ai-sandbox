@@ -57,7 +57,7 @@ public sealed partial class FaultInjector
             await operation(cancellationToken);
         }
 
-        LogFault(_logger, operationName, failingRule, plan.Timing);
+        LogFault(_logger, operationName, failingRule, plan.Timing, plan.Latency.TotalMilliseconds);
         return Result.Failure<T>(OperationErrors.ServiceUnavailable());
     }
 
@@ -103,8 +103,8 @@ public sealed partial class FaultInjector
         }
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Fallo inducido en {Operation}: regla {Rule}, momento {Timing}")]
-    private static partial void LogFault(ILogger logger, string operation, int rule, FaultTiming timing);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Fallo inducido en {Operation}: regla {Rule}, momento {Timing}, latencia {LatencyMs} ms")]
+    private static partial void LogFault(ILogger logger, string operation, int rule, FaultTiming timing, double latencyMs);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Latencia inducida en {Operation}: {LatencyMs} ms de las reglas {Rules}")]
     private static partial void LogLatency(ILogger logger, string operation, IReadOnlyList<int> rules, double latencyMs);

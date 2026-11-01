@@ -11,7 +11,7 @@ El repositorio SHALL proporcionar una definición de imagen por etapas que resta
 #### Scenario: Tests en verde
 - **GIVEN** un clon del repositorio con todos los tests en verde
 - **WHEN** se construye la etapa de tests (`docker build --target test .`)
-- **THEN** la construcción termina correctamente tras ejecutar los tests de los tres proyectos de tests
+- **THEN** la construcción termina correctamente tras ejecutar los tests de todos los proyectos de tests de la solución
 
 #### Scenario: Un test en rojo rompe la construcción
 - **GIVEN** un test modificado para que falle

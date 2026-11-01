@@ -18,10 +18,28 @@ public sealed class FaultLoggingTests
         Assert.Equal(FaultOperations.PlaceOrder, entry.Properties["Operation"]);
         Assert.Equal(0, entry.Properties["Rule"]);
         Assert.Equal(FaultTiming.After, entry.Properties["Timing"]);
+        Assert.Equal(0d, entry.Properties["LatencyMs"]);
         var logged = entry.Message + string.Join(" ", entry.Properties.Values);
         Assert.DoesNotContain("CUST-001", logged, StringComparison.Ordinal);
         Assert.DoesNotContain("SKU-MUG-RED", logged, StringComparison.Ordinal);
         Assert.DoesNotContain("k1", logged, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = 10_000)]
+    public async Task InducedFailure_WithLatency_LogsTheLatencyApplied()
+    {
+        var harness = new FaultHarness(
+            Rule(FaultOperations.All, latency: TimeSpan.FromMilliseconds(100)),
+            Rule(FaultOperations.ShipOrder, FaultTrigger.Always));
+
+        var shipping = harness.ShipAsync("k1", "ORD-0001");
+        harness.Sales.Clock.Advance(TimeSpan.FromMilliseconds(100));
+        await shipping.WaitAsync(TestContext.Current.CancellationToken);
+
+        var fault = Assert.Single(harness.Logger.Entries, entry => entry.Level == LogLevel.Warning);
+        Assert.Equal(1, fault.Properties["Rule"]);
+        Assert.Equal(FaultTiming.Before, fault.Properties["Timing"]);
+        Assert.Equal(100d, fault.Properties["LatencyMs"]);
     }
 
     [Fact]

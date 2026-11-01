@@ -244,7 +244,7 @@ Lo observado al ejecutar el Runner el 2026-11-01 con una probabilidad de 1,5: te
 
 ### Por qué se decide el plan antes de ejecutar
 
-En cada llamada, el inyector calcula primero un **plan** (latencia total, si falla, qué regla lo decide y en qué momento) y después lo aplica. Todas las reglas que cubren la operación avanzan su recuento y su secuencia aleatoria **en cada llamada**, falle o no otra regla.
+En cada llamada, el inyector calcula primero un **plan** (latencia total, si falla, qué regla lo decide y en qué momento) y después lo aplica. Todas las reglas que cubren la operación avanzan su recuento y su secuencia aleatoria **en cada llamada**, falle o no otra regla. Un test lo fija con dos reglas `FirstCalls` sobre la misma operación (N = 1 y N = 2): fallan la primera y la segunda llamada, y no la tercera. Para comprobar que el test detecta el error, se hizo temporalmente que el inyector dejara de evaluar las reglas posteriores a la que falla, y entonces falló también la tercera.
 
 Así, el patrón de fallos depende solo de la configuración, la semilla y la secuencia de llamadas, nunca de cuánto tarde la operación ni de lo que devuelva. Si el fallo se decidiera después de ejecutar, en función del resultado, dos ejecuciones con datos distintos darían patrones distintos. Es criterio de diseño propio.
 
@@ -293,7 +293,7 @@ Consecuencias en el diseño:
 
 ### Registro
 
-Cada fallo inducido se registra como `Warning` ("Fallo inducido en PlaceOrder: regla 0, momento After"), y cada latencia como `Information`, con la operación, la regla y los milisegundos. **Nunca se registran los argumentos** (cliente, líneas o clave), y lo comprueba un test. Con `LoggerMessage`, una lista de reglas se escribe como `[0, 1]` (observado en el apply).
+Cada fallo inducido se registra como `Warning`, con la operación, la regla que lo decide, el momento y la latencia total aplicada ("Fallo inducido en PlaceOrder: regla 0, momento After, latencia 0 ms"). Cada latencia se registra como `Information`, con la operación, las reglas que la aportan y los milisegundos. **Nunca se registran los argumentos** (cliente, líneas o clave), y lo comprueba un test. Con `LoggerMessage`, una lista de reglas se escribe como `[0, 1]` (observado en el apply).
 
 **Alternativas**: Polly y `Microsoft.Extensions.Resilience` incluyen estrategias de *chaos engineering* que inyectan fallos y latencia **(no verificado en esta sesión)**. Son la opción natural en un sistema real, pero para un laboratorio añaden una dependencia grande y ocultan justo lo que se quiere aprender. Inyectar los fallos dentro de los servicios mezclaría el fallo simulado con la lógica de negocio.
 

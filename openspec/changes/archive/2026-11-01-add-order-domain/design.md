@@ -257,7 +257,7 @@ builder.Services.AddSandboxApplication()            // devuelve OptionsBuilder<F
 
 ### D10. Proyecto de tests y contenedor
 
-- `tests/Sandbox.Application.Tests`: ejecutable, xUnit v3, `<Using Include="Xunit" />`, referencias a `Sandbox.Application` y `Sandbox.Domain` y paquete `Microsoft.Extensions.TimeProvider.Testing`. Para los registros usa un `ILoggerProvider` mínimo propio. No enlaza el de `Sandbox.Agents.Tests`, que depende de su `LogEntry`, para no acoplar los proyectos de tests de capas distintas.
+- `tests/Sandbox.Application.Tests`: ejecutable, xUnit v3, `<Using Include="Xunit" />`, referencias a `Sandbox.Application` y `Sandbox.Domain` y paquete `Microsoft.Extensions.TimeProvider.Testing`. Para los registros usa un doble mínimo propio. **Ajustado en el apply (tarea 4.5)**: es un `ILogger<T>` que guarda las entradas (`Fakes/RecordingLogger.cs`), no un `ILoggerProvider`, porque el inyector recibe su registro por constructor y no hace falta una fábrica. No enlaza el de `Sandbox.Agents.Tests`, que depende de su `LogEntry`, para no acoplar los proyectos de tests de capas distintas.
 - `Dockerfile`: una línea `COPY` más en la etapa `restore` para el nuevo `.csproj`.
 - `Sandbox.Domain.Tests` borra el test de cableado y pasa a probar el dominio.
 
@@ -270,7 +270,7 @@ builder.Services.AddSandboxApplication()            // devuelve OptionsBuilder<F
 - [Un test de latencia mal escrito se cuelga] → Patrón de D8 y `Timeout` en esos tests.
 - [`Random` con semilla cambia entre versiones mayores de .NET] → Los tests no fijan valores concretos (D8). Si un escenario necesita un fallo exacto, se usa `FirstCalls`.
 - [Un único `lock` serializa todas las operaciones] → Es irrelevante a esta escala, y `FunctionInvokingChatClient` ya invoca en serie por defecto.
-- [`requireLicenseAcceptance` en `TimeProvider.Testing`] → No impide `dotnet restore` desde la línea de comandos **(no verificado; se comprueba al restaurar, también en el contenedor)**.
+- [`requireLicenseAcceptance` en `TimeProvider.Testing`] → No impide `dotnet restore` desde la línea de comandos. **Comprobado en el apply (tarea 6.1)**: la restauración en local y en la etapa `restore` del contenedor terminó sin intervención.
 
 ## Migration Plan
 
