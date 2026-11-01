@@ -1,6 +1,6 @@
 # 9. Integración continua y cadena de suministro
 
-> **Estado**: creado con el change `add-ci-pipeline` (fase 1). Describe la CI implementada, la configuración de seguridad del repositorio en GitHub y Dependabot. Lo que solo se puede observar tras el merge, como los primeros PRs de Dependabot o la primera medición manual, queda marcado como pendiente. **Verificado**: 2026-10-31 contra GitHub Docs, la documentación de Docker, los `action.yml` de las acciones y con ejecuciones reales en el PR #13. Lo que viene de fuentes secundarias o no se ha podido comprobar se marca **(no verificado)**.
+> **Estado**: creado con el change `add-ci-pipeline` (fase 1). Describe la CI implementada, la configuración de seguridad del repositorio en GitHub y Dependabot. Tras el merge se añadió lo observado en `main`: la CI en el push, la primera ejecución de Dependabot y la primera medición. El primer PR de Dependabot sigue pendiente. **Verificado**: 2026-10-31 contra GitHub Docs, la documentación de Docker, los `action.yml` de las acciones y con ejecuciones reales en el PR #13. Lo que viene de fuentes secundarias o no se ha podido comprobar se marca **(no verificado)**.
 
 ## Qué es y por qué importa aquí
 
@@ -184,12 +184,17 @@ Fichero: [`.github/dependabot.yml`](../../.github/dependabot.yml).
 
 Ecosistemas: `nuget` (`Directory.Packages.props`), `docker` (`/` y `/tools/openspec`) y `github-actions`.
 
-Lo que **no** se sabe todavía, porque la documentación oficial no lo describe y Dependabot solo actúa sobre `main` **(no verificado; pendiente de los primeros PRs)**:
-- si con `etiqueta@digest` actualiza la etiqueta y el digest, o solo el digest dentro de la misma etiqueta (las fuentes secundarias se contradicen);
-- si conserva el SHA y actualiza el comentario de versión en las acciones;
-- si respeta la gestión centralizada de paquetes NuGet.
+GitHub **no** valida `dependabot.yml` en el PR: no apareció ningún check para ello. Antes del merge solo se pudo validar en local contra el esquema público de SchemaStore, que no es la fuente oficial de GitHub.
 
-GitHub **no** valida `dependabot.yml` en el PR: no apareció ningún check para ello. Se validó en local contra el esquema público de SchemaStore, que no es la fuente oficial de GitHub.
+**Observado tras el merge (2026-10-31)**: Dependabot se ejecutó solo al llegar `dependabot.yml` a `main`, una vez por ecosistema (workflow "Dependabot Updates", evento `dynamic`). Las tres ejecuciones terminaron bien, lo que confirma que GitHub acepta la configuración. Ninguna abrió PR porque todo estaba en la última versión. Del registro de cada ejecución:
+
+| Ecosistema | Qué reconoció | Resultado |
+|---|---|---|
+| `docker` | Las imágenes fijadas con `etiqueta@digest`, identificadas **por su etiqueta**: `dotnet/sdk 10.0.403-noble` y `dotnet/runtime 10.0.14-noble-chiseled` en `/`, y `node 26.13.0-alpine` en `/tools/openspec` | "No update needed" |
+| `github-actions` | Las cuatro acciones fijadas por SHA, identificadas **por la versión del comentario o de la etiqueta que apunta a ese SHA**: `actions/checkout 7.0.1`, `docker/setup-buildx-action 4.4.1`, `docker/build-push-action 7.4.0` y `anchore/scan-action 7.4.2` | "No update needed" |
+| `nuget` | `xunit.v3` 4.0.2 en los proyectos de tests, con la versión en `Directory.Packages.props` (gestión centralizada) | "No updatable version found" |
+
+Queda pendiente **cómo reescribe** las referencias cuando sí hay versión nueva: si cambia etiqueta y digest a la vez, si actualiza el SHA y el comentario, y si edita `Directory.Packages.props` en lugar de los `.csproj` **(no verificado; pendiente de su primer PR)**. Cuál de las dos cosas (el comentario o la etiqueta que apunta al SHA) usa para identificar la versión de una acción tampoco se puede saber por el registro.
 
 ### Configuración que no vive en ficheros
 
@@ -207,12 +212,22 @@ Al comparar el ruleset con el JSON, el servidor añade valores por defecto que e
 
 ## Medición nativo frente a contenedor en el runner
 
-El workflow manual [`measure.yml`](../../.github/workflows/measure.yml) mide en un mismo runner los escenarios de la tabla del documento 07 y escribe una tabla en el resumen de la ejecución. **Solo se puede lanzar cuando está en `main`**: desde la rama del change, `gh workflow run measure.yml --ref <rama>` devolvió `HTTP 404: workflow measure.yml not found on the default branch`. La primera medición queda pendiente para después del merge:
+El workflow manual [`measure.yml`](../../.github/workflows/measure.yml) mide en un mismo runner los escenarios de la tabla del documento 07. **Solo se puede lanzar cuando está en `main`**: desde la rama del change, `gh workflow run measure.yml --ref <rama>` devolvió `HTTP 404: workflow measure.yml not found on the default branch`. Tras el merge:
 
 ```bash
 gh workflow run measure.yml
 gh run watch
 ```
+
+La primera ejecución (2026-10-31, run 41227837734) tardó 1 min 12 s. Tras cambiar código, el contenedor tarda ×1,4 lo que tarda el nativo. Resultados y conclusión en el [documento 07](07-contenedores-en-sistemas-agenticos.md#medición-en-un-runner-de-github).
+
+**Lección**: la primera versión solo escribía la tabla en el resumen de la ejecución (`$GITHUB_STEP_SUMMARY`). Ni la API ni la página pública sin sesión iniciada lo muestran, así que hubo que copiarla a mano desde el navegador. Ahora también se imprime en el registro del job, que sí se puede leer con `gh run view --log`.
+
+## Lo observado tras el merge
+
+- **Push a `main`**: la CI se ejecutó con el evento `push` sobre el commit del merge (run 41227735087), en verde.
+- **Dependabot**: ver su sección; reconoce los tres formatos de fijación.
+- **Workflows borrados**: `gh workflow list --all` sigue mostrando `tmp-sha-check`, el workflow temporal de la prueba de SHA, aunque su fichero ya no existe. GitHub conserva el registro de los workflows que se han ejecutado alguna vez.
 
 ## Alternativas y trade-offs
 

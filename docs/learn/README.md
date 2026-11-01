@@ -35,7 +35,7 @@ Cada *change* de OpenSpec incluye una tarea de documentación de aprendizaje (ve
 | Fase | Documentación de aprendizaje |
 |------|------------------------------|
 | 0 | Los siete documentos base y el glosario (esta carpeta) |
-| 1 | Nuevos: 08 (estructura y estándares de la solución .NET; con `add-container-build`, también saltos de línea y globalización invariante) y 09 (CI y cadena de suministro, con `add-ci-pipeline`). Actualizado 07 con el experimento de velocidad en el equipo de desarrollo, el `Dockerfile` y la CI. Falta la medición en un runner de GitHub, que se lanza tras el merge de `add-ci-pipeline` |
+| 1 | Nuevos: 08 (estructura y estándares de la solución .NET; con `add-container-build`, también saltos de línea y globalización invariante) y 09 (CI y cadena de suministro, con `add-ci-pipeline`). Actualizado 07 con el experimento de velocidad (en el equipo de desarrollo y en un runner de GitHub), el `Dockerfile` y la CI |
 | 2 | Actualizar 04 con lo aprendido al conectar DeepSeek con `IChatClient` (endpoint personalizado, límites reales); actualizar 07 con la gestión real del secreto en contenedor |
 | 3 | Nuevo: *Diseño de dominios aptos para agentes* (idempotencia, máquinas de estado, errores deterministas) |
 | 4 | Actualizar 02 y 03 con trazas reales del bucle; nuevo: *Diseño de tools para LLMs* |
