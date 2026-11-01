@@ -1,6 +1,6 @@
 # 7. Contenedores en sistemas agénticos
 
-> **Estado**: actualizado con el change `add-container-build` (fase 1). La imagen, la etapa de tests y el servicio `runner` ya existen, y este documento describe lo implementado y lo medido. La CI está implementada con `add-ci-pipeline` (detalle en el documento 9), y la medición en un runner de GitHub se hizo tras su merge. La gestión real del secreto llega en la fase 2. **Verificado**: 2026-10-31 contra Microsoft Learn, la documentación de Docker y el registro de MCR lo que se cita con enlace, y con pruebas reales en este repositorio; lo demás se marca **(no verificado)**.
+> **Estado**: actualizado con el change `add-container-build` (fase 1). La imagen, la etapa de tests y el servicio `runner` ya existen, y este documento describe lo implementado y lo medido. La CI está implementada con `add-ci-pipeline` (detalle en el documento 9), y la medición en un runner de GitHub se hizo tras su merge. **Fase 2** (change `add-deepseek-chat-client`, 2026-11-01): el `runner` tiene red y recibe la API key como secreto por fichero, comprobado con llamadas reales a DeepSeek desde el contenedor. La CI espera ahora el código de salida 2. **Verificado**: 2026-10-31 contra Microsoft Learn, la documentación de Docker y el registro de MCR lo que se cita con enlace, y con pruebas reales en este repositorio; lo demás se marca **(no verificado)**.
 
 ## Por qué contenerizar este proyecto
 
@@ -134,12 +134,14 @@ La imagen de la etapa `test` lleva el SDK y ronda **1,4 GB** en local; la final,
 El fichero se llama `compose.yaml`, el nombre canónico según la documentación de Docker; `docker-compose.yml` se admite solo por compatibilidad. Hoy define un único servicio:
 
 ```bash
-docker compose run --build --rm runner   # construye la etapa final si hace falta, ejecuta y borra el contenedor
+# Bash; en PowerShell: $env:DEEPSEEK_API_KEY_FILE = "<ruta>"; docker compose run --build --rm runner
+DEEPSEEK_API_KEY_FILE=<ruta al fichero con la clave> docker compose run --build --rm runner
 ```
 
 - **One-shot**: `run --rm` ejecuta el Runner una vez, devuelve su código de salida y no deja el contenedor creado.
 - **`--build`**: sin él, compose reutiliza la imagen `agentic-sandbox-runner:local` si ya existe, aunque el código haya cambiado. Con él, reconstruye antes de ejecutar (y gracias a la caché, si nada cambió, tarda poco).
-- **`--scenario`** llegará con los escenarios de la fase 4; hoy el Runner no recibe argumentos y devuelve 0.
+- **Qué hace hoy**: el saludo de comprobación de la fase 2. Envía un mensaje fijo a DeepSeek y muestra la respuesta, el modelo y los tokens. Los códigos de salida (0, 1, 2 y 3) están en el [documento 10](10-configuracion-y-secretos-en-net.md).
+- **`--scenario`** llegará con los escenarios de la fase 4.
 - **Panel de trazas** (perfil opcional `dashboard`, Aspire Dashboard autónomo): fase 5. Microsoft aclara que es una herramienta de desarrollo, no de monitorización en producción, y que por defecto exige un token de acceso.
 
 ### Endurecimiento del `runner`
@@ -153,24 +155,53 @@ Todo está declarado en `compose.yaml` y comprobado con `docker inspect` sobre u
 | `cap_drop: [ALL]` | Sin capacidades del kernel (ni las que Docker da por defecto) | `CapDrop=["ALL"]` |
 | `security_opt: [no-new-privileges:true]` | Ningún proceso puede ganar privilegios (por ejemplo, con binarios *setuid*) | `SecurityOpt=["no-new-privileges:true"]` |
 | `mem_limit: 256m`, `cpus: 1.0` | Un fallo o un bucle no se come el equipo | `Memory=268435456`, `NanoCpus=1000000000` |
-| `network_mode: none` | Sin red, solo la interfaz local | `NetworkMode=none` |
+| (sin `network_mode`, desde la fase 2) | Red por defecto de compose: puede salir a Internet | `NetworkMode=agentic-ai-sandbox_default` |
 
-El Runner actual funciona con todas estas restricciones (código 0, sin avisos de escritura). Los límites de memoria y CPU son valores de partida: la fase 2 los revisará con carga real. La red se abrirá en la fase 2, solo para llegar a la API del modelo, y ese cambio quedará visible en su propio change.
+En la fase 1 el `runner` tenía `network_mode: none`. La fase 2 lo quitó porque el Runner necesita llegar a `api.deepseek.com`. Ahora puede salir a **cualquier** destino; limitarlo a uno solo es de la fase 5 (ver "Contenedor y seguridad agéntica", más abajo).
 
-La CI comprueba lo mismo en cada PR: el job `image` ejecuta la imagen final una vez con estas restricciones (`--read-only`, `--cap-drop ALL`, `no-new-privileges`, sin red, 256 MB y 1 CPU) y después la **escanea con Grype**. Política y detalle en el [ADR 0002](../adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md) y en el [documento 9](09-integracion-continua-y-cadena-de-suministro.md).
+El saludo real funciona con todas estas restricciones (código 0, tarea 5.1 del change `add-deepseek-chat-client`). Con el sistema de ficheros de solo lectura, el cliente HTTP no necesitó escribir en disco, así que no hace falta un `tmpfs`. Los límites de memoria y CPU siguen siendo valores de partida: un saludo cabe de sobra, y la carga real llegará con el bucle de tools de la fase 4.
+
+La CI comprueba lo mismo en cada PR: el job `image` ejecuta la imagen final una vez con estas restricciones (`--read-only`, `--cap-drop ALL`, `no-new-privileges`, sin red, 256 MB y 1 CPU) y después la **escanea con Grype**. En la CI no hay clave, así que desde la fase 2 el paso **espera el código 2** (configuración inválida) y que la salida nombre `DeepSeek:ApiKey`. Así demuestra que la imagen arranca, lee la configuración y falla de forma controlada. Si el Runner saliera con cualquier otro código, el paso fallaría: lo comprobamos en local pasándole una clave inventada, que sin red da el código 3, y el paso falló como debía. Política y detalle en el [ADR 0002](../adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md) y en el [documento 9](09-integracion-continua-y-cadena-de-suministro.md).
 
 ### Secretos
 
 El repositorio es público, así que:
 
 - La API key **nunca** va en la imagen, el `Dockerfile` (`ARG`/`ENV`), `compose` ni un `.env` versionado. Solo se versiona `.env.example`.
-- Opción recomendada: secreto de compose basado en **fichero** (`secrets/deepseek_api_key`, ignorado por Git), montado en `/run/secrets/` y leído con un proveedor de configuración por ficheros. A diferencia de una variable de entorno, no aparece en `docker inspect`. **(No verificado)** en esta sesión: la ruta de montaje y el proveedor concreto (fase 2).
-- Alternativa simple: la variable de entorno `DeepSeek__ApiKey`.
+- En compose, la clave llega como **secreto basado en fichero**, montado en `/run/secrets/` y leído con el proveedor *key-per-file*. A diferencia de una variable de entorno, no aparece en `docker inspect`. La spec `container-build` prohíbe pasarla por variable de entorno en compose.
+- Fuera de compose (por ejemplo, con `dotnet run`), la variable de entorno `DeepSeek__ApiKey` sigue siendo una alternativa simple, igual que las User Secrets ([documento 10](10-configuracion-y-secretos-en-net.md)).
 
-**Lo observado en la fase 1 sobre los secretos de compose**: si un servicio declara un secreto cuyo fichero **no existe**, `docker compose run` solo muestra un aviso (`secret file ... does not exist`), y el contenedor arranca y termina con 0. Compose **no** protege contra una clave ausente. Por eso:
+Cómo está declarado (fase 2):
 
-- en la fase 1 el `runner` no declara ningún secreto: declararlo sin usarlo daría una falsa sensación de control;
-- en la fase 2, la propia aplicación debe fallar con un error claro si no encuentra la clave.
+```yaml
+services:
+  runner:
+    secrets:
+      - source: deepseek_api_key
+        target: DeepSeek__ApiKey      # nombre del fichero dentro del contenedor
+secrets:
+  deepseek_api_key:
+    file: ${DEEPSEEK_API_KEY_FILE:-./secrets/deepseek_api_key}
+```
+
+- **La ruta del fichero se elige con `DEEPSEEK_API_KEY_FILE`.** Así el responsable apunta a su fichero de fuera del repositorio (`%USERPROFILE%\.secrets\…`) sin copiarlo. Si no se define, se usa `secrets/deepseek_api_key`, que Git y el `.dockerignore` excluyen.
+- **El nombre `DeepSeek__ApiKey`** hace que *key-per-file* lo lea como la clave de configuración `DeepSeek:ApiKey` (el `__` es el separador).
+
+**Comprobado en la fase 2** (2026-11-01, Docker Desktop 29.9.2 y Compose v5.6.1):
+
+| Comprobación | Resultado |
+|---|---|
+| Dónde se monta | `docker inspect` muestra un *bind mount* de **solo lectura** en `/run/secrets/DeepSeek__ApiKey` |
+| Lo lee el usuario 1654 | Sí: el saludo sale con 0, y el contenedor no tiene otra fuente de la clave. No hizo falta ajustar `uid` ni `mode` |
+| La clave en la configuración del contenedor | No aparece en `docker inspect` (ni en `Env` ni en ningún otro campo): se buscó comparando el JSON con el fichero, sin imprimir la clave |
+| Fichero ausente | Compose sigue avisando ("secret file … does not exist"), pero ahora el Runner sale con el **código 2** y nombra la opción que falta |
+| Canarios en `secrets/` y `.env` | No llegan ni a la imagen de test ni a la final, igual que en la fase 1 |
+| Latencia | La llamada tardó 4,4 s dentro del contenedor, frente a 1,1–1,4 s en local. Es una sola medida, así que no se saca ninguna conclusión |
+
+**Lo observado en la fase 1 sobre los secretos de compose**: si un servicio declara un secreto cuyo fichero **no existe**, `docker compose run` solo muestra un aviso (`secret file ... does not exist`), y el contenedor arranca igual. Compose **no** protege contra una clave ausente. Por eso:
+
+- en la fase 1 el `runner` no declaraba ningún secreto: declararlo sin usarlo habría dado una falsa sensación de control;
+- en la fase 2 la propia aplicación valida la clave al arrancar (`ValidateOnStart`) y falla con el código 2 si no la encuentra.
 
 **Comprobado en la fase 1**: con un fichero canario en `secrets/` y un `.env` con valores conocidos en la raíz del repo, ninguno de los dos llegó a la imagen de test ni a la final, ni por nombre ni por contenido. Además, el historial y las variables de entorno de la imagen final solo contienen lo que hereda de la imagen base.
 
@@ -179,7 +210,7 @@ El repositorio es público, así que:
 Implementada con `add-ci-pipeline` ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)). En cada PR y en cada push a `main` hay tres jobs, que son checks obligatorios del ruleset de `main`:
 
 - `test`: `docker build --target test`, el mismo comando que en local;
-- `image`: imagen final, ejecución endurecida y escaneo;
+- `image`: imagen final, ejecución endurecida (sin clave, espera el código 2) y escaneo;
 - `openspec`: validación estricta de las specs.
 
 Token de solo lectura, acciones fijadas por SHA (y exigido por el repositorio), sin secretos y con caché de capas de BuildKit en GitHub Actions.

@@ -12,6 +12,13 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Dobles de prueba compartidos con Sandbox.Agents.Tests, sin un proyecto de utilidades (design D6) -->
+  <ItemGroup>
+    <Compile Include="..\Sandbox.Agents.Tests\Fakes\FakeChatClient.cs" Link="Fakes\FakeChatClient.cs" />
+    <Compile Include="..\Sandbox.Agents.Tests\Fakes\LogEntry.cs" Link="Fakes\LogEntry.cs" />
+    <Compile Include="..\Sandbox.Agents.Tests\Fakes\RecordingLoggerProvider.cs" Link="Fakes\RecordingLoggerProvider.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Sandbox.Runner\Sandbox.Runner.csproj" />
     <ProjectReference Include="..\..\src\Sandbox.Agents\Sandbox.Agents.csproj" />

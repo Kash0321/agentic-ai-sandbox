@@ -79,9 +79,9 @@ La imagen final SHALL basarse en una imagen de runtime, sin el SDK, y SHALL cont
 - **THEN** contiene los ensamblados publicados del Runner y sus dependencias, y no contiene código fuente, proyectos de tests ni el SDK
 
 #### Scenario: El Runner arranca
-- **GIVEN** la imagen final construida
+- **GIVEN** la imagen final construida y ninguna API key disponible
 - **WHEN** se ejecuta un contenedor sin argumentos
-- **THEN** el Runner termina con código de salida 0
+- **THEN** el Runner arranca, termina con el código de salida de configuración inválida (2) e indica qué opción falta
 
 ### Requirement: Restauración cacheable
 Un cambio solo en el código fuente SHALL NOT invalidar el paso de restauración de paquetes. La restauración SHALL depender solo de los ficheros que definen dependencias y configuración de build.
@@ -113,19 +113,24 @@ El servicio `runner` SHALL ejecutarse con el sistema de ficheros raíz de solo l
 - **THEN** el sistema de ficheros raíz es de solo lectura, se han eliminado todas las capacidades, `no-new-privileges` está activo y hay límites de memoria y CPU
 
 #### Scenario: El Runner funciona con las restricciones
-- **GIVEN** las restricciones anteriores
+- **GIVEN** las restricciones anteriores y una API key válida como fichero de secreto
 - **WHEN** se ejecuta `docker compose run --rm runner`
 - **THEN** el Runner termina con código de salida 0 y sin errores de escritura en disco
 
-### Requirement: Runner sin red ni secretos declarados
-Mientras el Runner no necesite servicios externos, el servicio `runner` SHALL ejecutarse sin acceso a red y SHALL NOT declarar secretos.
+### Requirement: Runner con red y la API key como secreto por fichero
+El servicio `runner` SHALL tener acceso a red para llegar al proveedor del modelo y SHALL recibir la API key como secreto de compose montado en un fichero, cuya ruta en el anfitrión se puede elegir con una variable de entorno y que nunca está versionado. La clave MUST NOT pasarse por variable de entorno en compose ni quedar en la imagen.
 
-#### Scenario: Sin red
-- **GIVEN** el servicio `runner`
-- **WHEN** se inspecciona su configuración de red
-- **THEN** no tiene ninguna red conectada salvo la interfaz local
+#### Scenario: Secreto montado
+- **GIVEN** un fichero con la API key fuera del repositorio, indicado con la variable de entorno prevista
+- **WHEN** se ejecuta `docker compose run --rm runner`
+- **THEN** el contenedor ve la clave como un fichero en el directorio de secretos y el Runner la usa
 
-#### Scenario: Sin secretos
-- **GIVEN** la definición de compose
-- **WHEN** se buscan secretos declarados para el servicio `runner`
-- **THEN** no hay ninguno
+#### Scenario: La clave no aparece en la configuración del contenedor
+- **GIVEN** el servicio `runner` ejecutado con la clave como secreto
+- **WHEN** se inspeccionan sus variables de entorno y su configuración con `docker inspect`
+- **THEN** la clave no aparece
+
+#### Scenario: Fichero de secreto ausente
+- **GIVEN** la variable de entorno apuntando a un fichero que no existe
+- **WHEN** se ejecuta `docker compose run --rm runner`
+- **THEN** el Runner termina con el código de configuración inválida (2) e indica qué opción falta

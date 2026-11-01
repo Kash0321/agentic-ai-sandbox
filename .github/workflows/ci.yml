@@ -57,13 +57,26 @@ jobs:
           cache-from: type=gha,scope=image
           cache-to: type=gha,scope=image,mode=max
 
-      # Mismas restricciones que el servicio runner de compose.yaml
-      - name: Run the image once (hardened)
-        run: >-
-          docker run --rm --read-only --cap-drop ALL
-          --security-opt no-new-privileges --network none
-          --memory 256m --cpus 1
-          agentic-sandbox-runner:ci
+      # Mismas restricciones que el servicio runner de compose.yaml, pero sin red ni API key:
+      # el Runner debe arrancar, leer la configuración y salir con el código 2 (configuración inválida).
+      - name: Run the image once (hardened, no API key)
+        run: |
+          set +e
+          output=$(docker run --rm --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --network none \
+            --memory 256m --cpus 1 \
+            agentic-sandbox-runner:ci 2>&1)
+          code=$?
+          set -e
+          printf '%s\n' "$output"
+          if [ "$code" -ne 2 ]; then
+            echo "::error::Se esperaba el código 2 (configuración inválida) y el Runner salió con $code"
+            exit 1
+          fi
+          if ! grep -q 'DeepSeek:ApiKey' <<<"$output"; then
+            echo "::error::La salida del Runner no nombra la opción DeepSeek:ApiKey"
+            exit 1
+          fi
 
       # Informe completo: only-fixed ocultaría las vulnerabilidades sin arreglo.
       # El umbral solo decide si se anota un aviso; la tabla las muestra todas.

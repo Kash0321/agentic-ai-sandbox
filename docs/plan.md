@@ -27,6 +27,14 @@ La fase 1 se divide en tres changes de OpenSpec, para que cada PR sea pequeño y
 
 Los entregables de la tabla de fases se reparten entre ellos; el criterio de salida de la fase se cumple cuando los tres están hechos.
 
+## Fase 2: un change
+
+| Change | Contenido | Estado |
+|--------|-----------|--------|
+| `add-deepseek-chat-client` | Host genérico en el Runner (configuración por capas con User Secrets y secretos por fichero, validación al arrancar, códigos de salida 0/1/2/3), `IChatClient` hacia DeepSeek (`deepseek-flash` sin razonamiento por defecto, errores del proveedor sin fragmentos de la clave, registro de modelo y tokens), cliente falso y transporte HTTP simulado para tests, `compose.yaml` con red y la API key como secreto, CI que espera el código 2 sin clave | Implementado y verificado en local y en contenedor contra DeepSeek; pendiente de fusionar |
+
+Criterio de salida cumplido en la rama: saludo real contra DeepSeek con `dotnet run` y con `docker compose run`, y tests equivalentes con el cliente falso (`RunnerExitCodeTests`).
+
 ## Contenedores
 
 Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. Decisiones:
@@ -48,7 +56,8 @@ Este laboratorio busca también **aprender** los conceptos que valida. Por eso l
 
 ## Riesgos a vigilar
 
-- Soporte y calidad del *function calling* según el modelo de DeepSeek elegido.
+- Soporte y calidad del *function calling* según el modelo de DeepSeek elegido. En el explore de la fase 2, una *tool call* funcionó con `deepseek-flash`, con razonamiento y sin él; la calidad con tools reales se medirá en la fase 4.
+- DeepSeek cambia modelos y nombres sin aviso (en la fase 2, `deepseek-chat` ya respondía como `deepseek-flash`). El modelo es configurable y el Runner avisa del remapeo en el registro.
 - No determinismo del LLM: las pruebas críticas deben usar cliente falso.
-- Coste y latencia: límites de iteraciones y tokens desde la fase 2.
+- Coste y latencia: desde la fase 2 se registran los tokens y la duración de cada llamada; los límites de iteraciones y tokens llegan con los guardrails de la fase 5.
 - Recursos del equipo de desarrollo actual (Surface Go 2: 2 núcleos de baja potencia y 8 GB de RAM). Docker Desktop con WSL2 en reposo consume unos 2,8 GB y deja unos 0,5 GB libres. Por eso Docker se usa solo para construir y verificar, se cierra al terminar (`wsl --shutdown`), y la medición nativo frente a contenedor se hace en otro equipo. La CI valida la imagen en cualquier caso. Detalle en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](learn/07-contenedores-en-sistemas-agenticos.md).
