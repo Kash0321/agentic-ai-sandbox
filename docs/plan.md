@@ -31,9 +31,17 @@ Los entregables de la tabla de fases se reparten entre ellos; el criterio de sal
 
 | Change | Contenido | Estado |
 |--------|-----------|--------|
-| `add-deepseek-chat-client` | Host genérico en el Runner (configuración por capas con User Secrets y secretos por fichero, validación al arrancar, códigos de salida 0/1/2/3), `IChatClient` hacia DeepSeek (`deepseek-flash` sin razonamiento por defecto, errores del proveedor sin fragmentos de la clave, registro de modelo y tokens), cliente falso y transporte HTTP simulado para tests, `compose.yaml` con red y la API key como secreto, CI que espera el código 2 sin clave | Implementado y verificado en local y en contenedor contra DeepSeek; pendiente de fusionar |
+| `add-deepseek-chat-client` | Host genérico en el Runner (configuración por capas con User Secrets y secretos por fichero, validación al arrancar, códigos de salida 0/1/2/3), `IChatClient` hacia DeepSeek (`deepseek-flash` sin razonamiento por defecto, errores del proveedor sin fragmentos de la clave, registro de modelo y tokens), cliente falso y transporte HTTP simulado para tests, `compose.yaml` con red y la API key como secreto, CI que espera el código 2 sin clave | Fusionado en `main` (PR #15) |
 
-Criterio de salida cumplido en la rama: saludo real contra DeepSeek con `dotnet run` y con `docker compose run`, y tests equivalentes con el cliente falso (`RunnerExitCodeTests`).
+Criterio de salida cumplido: saludo real contra DeepSeek con `dotnet run` y con `docker compose run`, y tests equivalentes con el cliente falso (`RunnerExitCodeTests`).
+
+## Fase 3: un change
+
+| Change | Contenido | Estado |
+|--------|-----------|--------|
+| `add-order-domain` | Dominio de ventas (pedidos con máquina de estados `Placed -> Shipped/Cancelled`, clientes, stock con reservas, límites de negocio), errores como resultado con código estable y tipo (ADR 0003), commands `PlaceOrder`/`CancelOrder`/`ShipOrder` con clave de idempotencia y queries `GetOrder`/`GetCustomer`/`GetStock` sobre un estado in-memory con catálogo semilla y reloj inyectado, inyector de fallos configurable (siempre, primeras N llamadas o probabilidad con semilla; antes o después de ejecutar; latencia), registro en el Runner con validación al arrancar (código 2), proyecto `Sandbox.Application.Tests` | Implementado, verificado en local y en contenedor, y archivado en la rama del change |
+
+Criterio de salida: tests de dominio y de aplicación con todas las reglas, cada transición inválida, la idempotencia, la concurrencia y los fallos inducidos (antes y después de ejecutar, y con latencia sobre un reloj falso). Las sagas multipaso quedan para un dominio ampliado más adelante.
 
 ## Contenedores
 

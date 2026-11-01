@@ -11,6 +11,7 @@ COPY src/Sandbox.Application/Sandbox.Application.csproj src/Sandbox.Application/
 COPY src/Sandbox.Agents/Sandbox.Agents.csproj src/Sandbox.Agents/
 COPY src/Sandbox.Runner/Sandbox.Runner.csproj src/Sandbox.Runner/
 COPY tests/Sandbox.Domain.Tests/Sandbox.Domain.Tests.csproj tests/Sandbox.Domain.Tests/
+COPY tests/Sandbox.Application.Tests/Sandbox.Application.Tests.csproj tests/Sandbox.Application.Tests/
 COPY tests/Sandbox.Agents.Tests/Sandbox.Agents.Tests.csproj tests/Sandbox.Agents.Tests/
 COPY tests/Sandbox.Scenarios.Tests/Sandbox.Scenarios.Tests.csproj tests/Sandbox.Scenarios.Tests/
 RUN dotnet restore AgenticSandbox.slnx

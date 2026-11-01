@@ -118,6 +118,7 @@ Tokens: 13 de entrada y 2 de salida
   ```
 - Alternativa por variable de entorno, en cualquier entorno: `DeepSeek__ApiKey=<tu-api-key>`.
 - Los escenarios (`--scenario <id>`) llegan en la fase 4.
+- El inyector de fallos de los servicios dummy se activa con la sección `FaultInjection` (por ejemplo, `--FaultInjection:Rules:0:Operation=PlaceOrder --FaultInjection:Rules:0:Trigger=Always`). Sin ella no hace nada, y una regla inválida termina con el código 2. Detalle en [`docs/learn/11-dominios-aptos-para-agentes.md`](docs/learn/11-dominios-aptos-para-agentes.md).
 
 Configuración por defecto (`src/Sandbox.Runner/appsettings.json`, sin clave):
 
@@ -257,18 +258,19 @@ agentic-ai-sandbox/
 │   └── adr/                       # Decisiones de arquitectura
 ├── src/
 │   ├── Sandbox.Domain/            # Entidades, records, reglas de negocio
-│   ├── Sandbox.Application/       # Commands/Queries, servicios dummy in-memory
+│   ├── Sandbox.Application/       # Commands/Queries, servicios dummy in-memory, inyector de fallos
 │   ├── Sandbox.Agents/            # Tools (AIFunction), pipeline, guardrails, runner
 │   └── Sandbox.Runner/            # Host de consola: DI, config, escenarios
 └── tests/
     ├── Sandbox.Domain.Tests/
+    ├── Sandbox.Application.Tests/ # Operaciones, idempotencia e inyector de fallos (reloj falso)
     ├── Sandbox.Agents.Tests/      # Tools y guardrails con IChatClient falso
     └── Sandbox.Scenarios.Tests/   # Escenarios end-to-end deterministas
 ```
 
 ## Estado
 
-Fases 1 (**Setup de solución**) y 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek) completadas. Siguiente: **fase 3 · Servicios dummy**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek) y 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) completadas. Siguiente: **fase 4 · Pipeline agéntico**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

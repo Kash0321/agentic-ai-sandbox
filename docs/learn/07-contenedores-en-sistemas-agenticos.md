@@ -81,6 +81,13 @@ Los ficheros son [`Dockerfile`](../../Dockerfile), [`.dockerignore`](../../.dock
 
 `COPY` con comodines no conserva las carpetas, así que para que `restore` sea una capa cacheable hay que copiar cada `.csproj` a su ruta. Cuesta una línea por proyecto nuevo, pero **olvidarla falla de forma explícita**: al restaurar la solución, `dotnet restore` se queja de que no encuentra el proyecto (`error MSB3202: The project file ".../Sandbox.Agents.Tests.csproj" was not found`, observado). BuildKit tiene `COPY --parents`, que conserva la estructura, pero es una extensión que no se ha comprobado en Podman.
 
+En la fase 3 (change `add-order-domain`) entró el cuarto proyecto de tests, `Sandbox.Application.Tests`, con su línea `COPY`. Lo observado el 2026-11-01 en el equipo de desarrollo (Docker 29.9.2):
+
+- `docker build --target test .` tardó 160 s con la caché de las imágenes base: 35,6 s de restauración, 73,2 s de compilación y 18,2 s de tests (154, de los cuatro proyectos).
+- El paquete nuevo `Microsoft.Extensions.TimeProvider.Testing` declara `requireLicenseAcceptance` en su `.nuspec`. **No bloqueó** `dotnet restore` dentro del contenedor, sin intervención.
+- La imagen final siguió terminando con el código 2 sin clave, con las mismas opciones que el job `image` (`--read-only`, `--cap-drop ALL`, `no-new-privileges`, sin red). Con una regla del inyector inválida en variables de entorno, también terminó con 2 y nombró los dos ajustes.
+- Con un canario en `secrets/` y otro en `.env`, ninguno apareció en la imagen de test (búsqueda con `grep` y un control positivo) ni en el sistema de ficheros exportado de la final: la lista blanca de `.dockerignore` los deja fuera.
+
 ### Contexto de build: `.dockerignore` de lista blanca
 
 El **contexto** es lo que el cliente envía al motor antes de construir. El `.dockerignore` del proyecto **excluye todo** (`*`) y vuelve a incluir solo lo necesario (`!src/`, `!tests/`, los ficheros raíz de build). Después excluye otra vez `**/bin/`, `**/obj/` y `**/TestResults/`. Un fichero nuevo en la raíz, sea un `.env` o una carpeta de secretos con otro nombre, queda fuera **por defecto**. La alternativa habitual, una lista negra (`bin/`, `.git`, `.env`...), falla de forma insegura: lo que no se previó, entra.

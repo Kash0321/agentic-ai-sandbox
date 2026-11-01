@@ -48,6 +48,42 @@ public sealed class RunnerExitCodeTests : IDisposable
     }
 
     [Fact]
+    public async Task RunAsync_WithInvalidFaultInjectionRule_ReturnsInvalidConfigurationNamingTheSetting()
+    {
+        var chatClient = FakeChatClient.RespondingWith("hola");
+
+        var exitCode = await RunAsync(
+            chatClient,
+            ValidKeyArgument,
+            "--FaultInjection:Rules:0:Operation=GetStock",
+            "--FaultInjection:Rules:0:Trigger=Probability",
+            "--FaultInjection:Rules:0:Probability=1.5");
+
+        Assert.Equal(ExitCodes.InvalidConfiguration, exitCode);
+        Assert.Contains("FaultInjection:Rules:0:Probability", _error.ToString(), StringComparison.Ordinal);
+        Assert.Empty(chatClient.ReceivedMessages);
+        Assert.Empty(_output.ToString());
+    }
+
+    [Fact]
+    public async Task RunAsync_WithoutApiKeyAndWithInvalidFaultInjectionRule_ReturnsInvalidConfigurationNamingBoth()
+    {
+        var chatClient = FakeChatClient.RespondingWith("hola");
+
+        var exitCode = await RunAsync(
+            chatClient,
+            "--FaultInjection:Rules:0:Operation=DeleteEverything",
+            "--FaultInjection:Rules:0:Trigger=Always");
+
+        Assert.Equal(ExitCodes.InvalidConfiguration, exitCode);
+        var error = _error.ToString();
+        Assert.Contains("DeepSeek:ApiKey", error, StringComparison.Ordinal);
+        Assert.Contains("FaultInjection:Rules:0:Operation", error, StringComparison.Ordinal);
+        Assert.Empty(chatClient.ReceivedMessages);
+        Assert.DoesNotContain(_logs.Entries, entry => entry.Exception is not null);
+    }
+
+    [Fact]
     public async Task RunAsync_WhenProviderRejectsKey_ReturnsModelCallFailedWithoutKeyFragments()
     {
         var chatClient = FakeChatClient.Throwing(new ChatProviderException(ChatProviderErrorCategory.Authentication, 401));

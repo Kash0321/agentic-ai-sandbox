@@ -131,3 +131,24 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **Remapeo de modelo** | El proveedor atiende una petición con un modelo distinto del pedido; en DeepSeek, `deepseek-chat` responde como `deepseek-flash` |
 | **Caché de *prompt*** | El proveedor reutiliza el prefijo repetido de las peticiones y lo cobra más barato; DeepSeek la aplica sin pedirla |
 | **Transporte HTTP simulado** | `HttpMessageHandler` de pruebas que devuelve respuestas grabadas; permite probar el cliente real sin red |
+| **Máquina de estados explícita** | Conjunto cerrado de estados y de transiciones permitidas, comprobado en un único sitio; cualquier otra transición se rechaza |
+| **Estado terminal** | Estado sin transiciones de salida; aquí, `Shipped` y `Cancelled` |
+| **Código de error estable** | Identificador en inglés y en mayúsculas (`INSUFFICIENT_STOCK`) que no cambia entre versiones; el agente, los guardrails y los tests razonan sobre él |
+| **`ErrorKind`** | Tipo de un error de dominio (`Validation`, `NotFound`, `BusinessRule`, `Conflict`, `Transient`); indica la reacción esperada sin conocer cada código |
+| **Patrón *Result*** | Devolver el error como valor (`Result<T>`: un valor o un error) en lugar de lanzar una excepción, para que forme parte del contrato |
+| **`MemberNotNullWhen`** | Atributo de análisis de nulos: indica al compilador qué miembros no son nulos según el valor de una propiedad booleana |
+| **Invariante** | Condición que siempre debe cumplirse (por ejemplo, no reservar más del disponible); romperlo es un error de programación, no de negocio |
+| **Clave de idempotencia** | Identificador que el llamante envía con un command para que el servicio reconozca un reintento y devuelva el resultado guardado sin repetir el efecto |
+| **Respuesta perdida** | La operación se ejecutó, pero su resultado no llegó a quien la pidió; el reintento sin idempotencia la repetiría |
+| **Huella (de idempotencia)** | Los argumentos de una petición, con los que se distingue un reintento legítimo de una clave reutilizada para otra cosa |
+| **Command / query** | Operación que cambia el estado / que solo lo lee; base de CQRS |
+| **Vista compacta** | `record` de salida con solo los campos que necesita quien lo consume, no la entidad completa |
+| **Sección crítica** | Fragmento de código que solo un hilo ejecuta a la vez, protegido por un cerrojo (`lock`) |
+| **Condición de carrera** | Error que depende del orden en que se intercalan dos hilos; por ejemplo, dos pedidos que reservan el mismo último stock |
+| **Inyección de fallos (*fault injection*)** | Provocar a propósito errores o lentitud en un servicio para probar cómo reacciona quien lo usa; aquí, por configuración y con semilla |
+| **Decorador** | Clase que implementa la misma interfaz que otra, la envuelve y añade comportamiento sin cambiar su código |
+| **Disparador (*trigger*)** | En el inyector, la condición que decide si una llamada falla: siempre, las N primeras o con una probabilidad |
+| **Error transitorio** | Fallo pasajero (`SERVICE_UNAVAILABLE`) en el que repetir la misma petición más tarde puede funcionar |
+| **`TimeProvider`** | Abstracción del reloj de .NET (desde .NET 8): hora actual, temporizadores y esperas; se inyecta para poder sustituirla en los tests |
+| **`FakeTimeProvider`** | Reloj de pruebas que solo avanza cuando el test llama a `Advance`; esperar sin avanzarlo deja el test colgado |
+| **Semilla** | Valor inicial de un generador pseudoaleatorio; con la misma semilla, la misma secuencia, pero solo dentro de la misma versión mayor de .NET |
