@@ -127,3 +127,5 @@ Rama de trabajo: `feat/add-deepseek-chat-client`. Referencias: `design.md` (deci
 
 - `/opsx:verify` sin problemas críticos y `/opsx:archive` en esta misma rama, antes de abrir el PR. Commits, push y PR solo cuando el usuario lo pida. En el PR, los checks `test`, `image` (ahora espera el código 2) y `openspec` deben estar en verde.
 - Fase 4: resolver si con el razonamiento activado hay que reenviarlo en los turnos con herramientas, y dar nombres explícitos a las tools.
+- Fase 4: si se usa *streaming*, `UsageLoggingChatClient` debe registrar también esas llamadas (hoy solo registra `GetResponseAsync`; el traductor de errores ya cubre las dos vías).
+- Cobertura manual: los escenarios "User Secrets fuera de Development", "Saludo real en local" y "Saludo contra el proveedor real" se verificaron con ejecuciones reales (tareas 4.1 y 4.2), no con tests automáticos, porque necesitan un almacén de User Secrets o red.

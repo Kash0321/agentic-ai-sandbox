@@ -84,7 +84,15 @@ public static partial class RunnerHost
         }
         catch (ChatProviderException exception)
         {
-            LogModelCallFailed(logger, exception.Category, exception.StatusCode);
+            if (exception.StatusCode is { } statusCode)
+            {
+                LogModelCallFailedWithStatus(logger, exception.Category, statusCode);
+            }
+            else
+            {
+                LogModelCallFailed(logger, exception.Category);
+            }
+
             await error.WriteLineAsync($"Fallo al llamar al modelo: {exception.Message}");
             return ExitCodes.ModelCallFailed;
         }
@@ -97,7 +105,10 @@ public static partial class RunnerHost
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Fallo al llamar al modelo: {Category}, HTTP {StatusCode}")]
-    private static partial void LogModelCallFailed(ILogger logger, ChatProviderErrorCategory category, int? statusCode);
+    private static partial void LogModelCallFailedWithStatus(ILogger logger, ChatProviderErrorCategory category, int statusCode);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Fallo al llamar al modelo: {Category}, sin respuesta HTTP")]
+    private static partial void LogModelCallFailed(ILogger logger, ChatProviderErrorCategory category);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Error inesperado en el Runner")]
     private static partial void LogUnexpectedError(ILogger logger, Exception exception);

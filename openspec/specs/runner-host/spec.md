@@ -1,13 +1,12 @@
-# Spec Delta
+# runner-host Specification
 
 ## Purpose
-
 Define cómo arranca y termina el Runner: de dónde lee su configuración y con qué prioridad, incluidos los secretos montados como ficheros; qué hace en su ejecución de comprobación; y qué código de salida devuelve en cada caso.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Fuentes de configuración con prioridad definida
-El Runner SHALL leer la configuración, de menor a mayor prioridad, de: el fichero de configuración de la aplicación, los User Secrets (solo en el entorno `Development`), las variables de entorno y los ficheros de un directorio de secretos montado. Una fuente posterior MUST sobrescribir a las anteriores. El directorio de secretos MAY no existir.
+El Runner SHALL leer la configuración, de menor a mayor prioridad, de: el fichero de configuración de la aplicación y su variante por entorno, los User Secrets (solo en el entorno `Development`), las variables de entorno, los argumentos de la línea de comandos y los ficheros de un directorio de secretos montado. Una fuente posterior MUST sobrescribir a las anteriores. El directorio de secretos MAY no existir.
 
 #### Scenario: Clave como fichero de secreto
 - **GIVEN** un directorio de secretos con un fichero llamado `DeepSeek__ApiKey` que contiene una clave

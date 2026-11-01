@@ -119,11 +119,11 @@ Alternativa: `[Required]` y `ValidateDataAnnotations()`. Es más corta, pero sus
 IChatClient
   = ProviderErrorTranslatingChatClient     (ClientResultException/HttpRequestException -> ChatProviderException)
     -> UsageLoggingChatClient               (modelo pedido, modelo que respondió, duración, tokens)
-      -> ConfigureOptions                   (ModelId y, si Thinking=false, el JsonPatch)
-        -> OpenAI ChatClient.AsIChatClient()  (Endpoint, ApiKeyCredential)
+      -> ConfigureOptions                   (solo si Thinking=false: el JsonPatch)
+        -> OpenAI ChatClient.AsIChatClient()  (modelo, Endpoint, ApiKeyCredential)
 ```
 
-- **`OpenAIClient` con `ApiKeyCredential` y `OpenAIClientOptions.Endpoint`**, tal como se comprobó en el explore.
+- **`ChatClient` del SDK de OpenAI con el modelo, un `ApiKeyCredential` y `OpenAIClientOptions.Endpoint`**, tal como se comprobó en el explore. El modelo queda fijado al construir el cliente, así que `ConfigureOptions` no toca `ModelId`; solo se añade al pipeline cuando hay que desactivar el razonamiento.
 - **El razonamiento** se desactiva en `ChatOptions.RawRepresentationFactory`, devolviendo un `ChatCompletionOptions` con `Patch.Set("$.thinking"u8, …)`. Es el **único** fichero con `#pragma warning disable SCME0001`, con un comentario que lo justifica: la API es experimental, y si cambia solo falla aquí. No se usa `<NoWarn>` global.
 - **No se usa `UseLogging()` de `Microsoft.Extensions.AI`**, porque puede registrar los mensajes completos con niveles detallados **(no verificado)**. Un `DelegatingChatClient` propio registra solo lo que pide la spec y avisa si el modelo que respondió no coincide con el pedido (el remapeo del explore).
 - **Traducción de errores**: `ProviderErrorTranslatingChatClient` captura `ClientResultException` y crea un `ChatProviderException` con el código HTTP y una categoría estable (`Authentication`, `RateLimited`, `ProviderError`). Captura también `HttpRequestException` (`Network`). **Nunca copia el mensaje del proveedor.** `OperationCanceledException` se propaga sin tocar.
