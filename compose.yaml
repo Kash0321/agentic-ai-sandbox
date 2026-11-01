@@ -1,5 +1,6 @@
-# Ejecución local one-shot del Runner:
-#   docker compose run --build --rm runner
+# Ejecución local one-shot del Runner, con la API key de DeepSeek como secreto por fichero:
+#   DEEPSEEK_API_KEY_FILE=<ruta al fichero con la clave> docker compose run --build --rm runner
+# Sin DEEPSEEK_API_KEY_FILE se usa ./secrets/deepseek_api_key (secrets/ está en .gitignore y .dockerignore).
 services:
   runner:
     build:
@@ -13,5 +14,13 @@ services:
       - no-new-privileges:true
     mem_limit: 256m
     cpus: 1.0
-    # Sin red ni secretos hasta que la fase 2 conecte con DeepSeek y lea la API key
-    network_mode: none
+    # Red por defecto de compose: el Runner llama a la API de DeepSeek.
+    # Limitar la salida a un único destino es de la fase 5.
+    secrets:
+      # Se monta en /run/secrets/DeepSeek__ApiKey; key-per-file lo lee como DeepSeek:ApiKey
+      - source: deepseek_api_key
+        target: DeepSeek__ApiKey
+
+secrets:
+  deepseek_api_key:
+    file: ${DEEPSEEK_API_KEY_FILE:-./secrets/deepseek_api_key}

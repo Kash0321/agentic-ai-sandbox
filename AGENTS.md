@@ -9,7 +9,7 @@ Guía de contexto y comportamiento para cualquier asistente de IA que trabaje en
 - El dominio es **dummy e in-memory**: simula lógica de negocio, validaciones, fallos inducidos y cambios de estado.
 - **Fuera de alcance**: bases de datos reales, integración con ERP/CRM reales, autenticación de usuarios, UI, despliegue, alta disponibilidad.
 - No añadas dependencias, proyectos ni capas "por si acaso". Si algo no sirve a un patrón que se quiere validar, no se añade.
-- Nunca incluyas secretos, API keys ni datos reales en el repo. La key va en User Secrets o variables de entorno.
+- Nunca incluyas secretos, API keys ni datos reales en el repo. La key va en User Secrets o variables de entorno en local, y como secreto por fichero en el contenedor (sección 10).
 - El proyecto es open source bajo licencia **MIT** (`LICENSE`). Las dependencias nuevas deben tener una licencia compatible (MIT, Apache-2.0, BSD u otra permisiva). No añadas dependencias con copyleft fuerte (GPL, AGPL) ni sin licencia clara sin consultarlo antes. No copies código de terceros sin comprobar su licencia.
 
 ## 2. Principios de diseño
@@ -141,12 +141,12 @@ Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. El d
 - **`Dockerfile` multi-etapa**, en este orden: `restore` (solo ficheros de dependencias, para cachear), `build`, `test`, `publish` y `final`. La etapa `test` no necesita red: los tests usan un `IChatClient` falso.
 - **Imágenes base**: fijadas por tag explícito (nunca `latest`) y, cuando sea posible, por digest. Imagen final basada en el runtime, no en el SDK.
 - **Usuario no root** en la imagen final. Sistema de ficheros de solo lectura, `cap_drop: ALL` y `no-new-privileges` en compose salvo motivo justificado.
-- **Secretos**: nunca en la imagen, en `ARG`, en `ENV` del `Dockerfile`, en compose ni en ficheros versionados. La API key se pasa con un secreto por fichero (`secrets/`, ignorado por Git) o, como alternativa simple, por variable de entorno en tiempo de ejecución. Solo se versiona `.env.example`. El repositorio es público.
+- **Secretos**: nunca en la imagen, en `ARG`, en `ENV` del `Dockerfile`, en compose ni en ficheros versionados. En compose, la API key llega como secreto por fichero montado en `/run/secrets/DeepSeek__ApiKey`; la ruta en el anfitrión se elige con `DEEPSEEK_API_KEY_FILE` (por defecto `secrets/deepseek_api_key`, ignorado por Git), y nunca se pasa por variable de entorno. Fuera de compose, User Secrets (solo en `Development`) o variable de entorno. Solo se versiona `.env.example`. El repositorio es público.
 - **`.dockerignore` estricto** (`bin/`, `obj/`, `.git`, `secrets/`, `.env`, etc.).
 - **Fin de línea**: `.gitattributes` fuerza `eol=lf` en `Dockerfile`, scripts y YAML, para evitar `/bin/sh^M` en Linux.
 - **Compose**: el servicio `runner` es *one-shot* (`docker compose run --rm runner --scenario <id>`). El panel de trazas OTLP (Aspire Dashboard) es un perfil opcional y solo para desarrollo.
 - **Motor**: compatible con Docker y Podman; evita funciones exclusivas de uno solo.
-- **CI** (`.github/workflows/ci.yml`): construye el mismo `Dockerfile`, con token de solo lectura, sin secretos, sin filtros de ruta y con las acciones fijadas por SHA. El repositorio rechaza las acciones sin SHA. Sus jobs `test`, `image` (imagen final, ejecución endurecida y escaneo con Grype) y `openspec` son checks obligatorios del ruleset de `main`. No los renombres sin actualizar `.github/rulesets/protect-main.json`. La política de vulnerabilidades está en `docs/adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md`.
+- **CI** (`.github/workflows/ci.yml`): construye el mismo `Dockerfile`, con token de solo lectura, sin secretos, sin filtros de ruta y con las acciones fijadas por SHA. El repositorio rechaza las acciones sin SHA. Sus jobs `test`, `image` (imagen final, ejecución endurecida sin clave, que debe terminar con el código de salida 2 de la spec `runner-host`, y escaneo con Grype) y `openspec` son checks obligatorios del ruleset de `main`. No los renombres sin actualizar `.github/rulesets/protect-main.json`. La política de vulnerabilidades está en `docs/adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md`.
 - **Datos**: nunca se montan datos reales en un contenedor; solo datos sintéticos.
 - **Un contenedor no es un guardrail**: no sustituye a la autorización ni a las políticas de las secciones 4 y 5.
 - Los cambios en el `Dockerfile` o en compose siguen el flujo normal (change de OpenSpec, rama y PR) y actualizan `docs/learn/07-contenedores-en-sistemas-agenticos.md` con lo aprendido.

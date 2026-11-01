@@ -90,31 +90,62 @@ git clone <url-del-repo> agentic-ai-sandbox
 cd agentic-ai-sandbox
 
 # 2. Configurar la API key (User Secrets, nunca en el repo)
-dotnet user-secrets init --project src/Sandbox.Runner
 dotnet user-secrets set "DeepSeek:ApiKey" "<tu-api-key>" --project src/Sandbox.Runner
 
-# 3. Compilar y probar
+# 3. Compilar y probar (sin red ni API key: los tests usan un cliente falso)
 dotnet build
 dotnet test
 
-# 4. Ejecutar un escenario
-dotnet run --project src/Sandbox.Runner -- --scenario create-order
+# 4. Ejecutar el saludo de comprobación contra DeepSeek
+dotnet run --project src/Sandbox.Runner
 ```
 
-Alternativa por variable de entorno: `DEEPSEEK__APIKEY=<tu-api-key>`.
+Salida esperada (los registros van a la salida de errores):
 
-Configuración por defecto (`appsettings.json`):
+```
+Respuesta: hola
+Modelo: deepseek-flash
+Tokens: 13 de entrada y 2 de salida
+```
+
+- **Las User Secrets solo se cargan en el entorno `Development`.** `dotnet run` lo fija con `src/Sandbox.Runner/Properties/launchSettings.json`; si ejecutas la DLL directamente, el entorno es `Production` y no verá la clave.
+- Para que la clave no quede en el historial de la terminal, puedes pasarla desde un fichero por la entrada estándar. En PowerShell:
+
+  ```powershell
+  $key = (Get-Content -Raw "<ruta al fichero con la clave>").Trim()
+  @{ 'DeepSeek:ApiKey' = $key } | ConvertTo-Json -Compress | dotnet user-secrets set --project src/Sandbox.Runner
+  $key = $null
+  ```
+- Alternativa por variable de entorno, en cualquier entorno: `DeepSeek__ApiKey=<tu-api-key>`.
+- Los escenarios (`--scenario <id>`) llegan en la fase 4.
+
+Configuración por defecto (`src/Sandbox.Runner/appsettings.json`, sin clave):
 
 ```json
 {
   "DeepSeek": {
     "Endpoint": "https://api.deepseek.com",
-    "Model": "deepseek-chat"
+    "Model": "deepseek-flash",
+    "Thinking": false
   }
 }
 ```
 
+- `deepseek-flash` y `deepseek-v4-pro` son los modelos actuales de DeepSeek. Los nombres antiguos (`deepseek-chat`, `deepseek-reasoner`) se aceptan, pero responde `deepseek-flash`; el Runner lo avisa en el registro.
+- `Thinking: false` desactiva el razonamiento, que DeepSeek activa por defecto y cuesta tokens.
+
 > Los endpoints y modelos disponibles pueden cambiar; consulta la documentación oficial de DeepSeek. Verifica el soporte de *function calling* del modelo elegido antes de usarlo en un escenario.
+
+Códigos de salida del Runner:
+
+| Código | Significado |
+|---|---|
+| `0` | Éxito |
+| `1` | Error inesperado (el detalle queda en el registro) |
+| `2` | Configuración inválida, por ejemplo, falta la API key |
+| `3` | Fallo al llamar al modelo: autenticación, red o error del proveedor |
+
+Detalle en [`docs/learn/10-configuracion-y-secretos-en-net.md`](docs/learn/10-configuracion-y-secretos-en-net.md).
 
 ## Ejecución con contenedores
 
@@ -124,11 +155,22 @@ Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. El f
 # Tests dentro del contenedor (la etapa de tests se ejecuta sin red ni API key)
 docker build --target test .
 
-# Imagen final y ejecución del Runner (one-shot, endurecido y sin red)
+# Imagen final y saludo del Runner (one-shot y endurecido), con la API key como secreto por fichero
+DEEPSEEK_API_KEY_FILE=<ruta al fichero con la clave> docker compose run --build --rm runner
+```
+
+En PowerShell:
+
+```powershell
+$env:DEEPSEEK_API_KEY_FILE = "<ruta al fichero con la clave>"
 docker compose run --build --rm runner
 ```
 
-Hoy el Runner no hace nada y devuelve 0. Los escenarios (`--scenario <id>`) llegan en la fase 4, y la conexión con DeepSeek, que abrirá la red del `runner`, en la fase 2. La API key se pasará como secreto por fichero (`secrets/deepseek_api_key`, ignorado por Git), nunca dentro de la imagen. Detalle, mediciones y razones en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](docs/learn/07-contenedores-en-sistemas-agenticos.md).
+- La clave llega al contenedor como **secreto de compose**: se monta en `/run/secrets/DeepSeek__ApiKey` y nunca está en la imagen, en `compose.yaml` ni en las variables de entorno del contenedor.
+- Sin `DEEPSEEK_API_KEY_FILE` se usa `secrets/deepseek_api_key`, que Git ignora. Si el fichero no existe, compose solo avisa y el Runner termina con el código 2.
+- El `runner` tiene red para llegar a la API de DeepSeek. Limitar la salida a ese único destino es de la fase 5.
+
+Detalle, mediciones y razones en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](docs/learn/07-contenedores-en-sistemas-agenticos.md).
 
 ## Integración continua
 
@@ -137,7 +179,7 @@ Cada pull request y cada push a `main` ejecutan [`.github/workflows/ci.yml`](.gi
 | Check | Qué comprueba |
 |---|---|
 | `test` | `docker build --target test`: compilación y tests, igual que en local |
-| `image` | La imagen final arranca con las restricciones del `runner` y no tiene vulnerabilidades altas o críticas con arreglo (Grype) |
+| `image` | La imagen final arranca con las restricciones del `runner` y, sin API key, termina con el código 2 nombrando la opción que falta; además, no tiene vulnerabilidades altas o críticas con arreglo (Grype) |
 | `openspec` | `openspec validate --all --strict` |
 
 Dependabot propone cada semana las actualizaciones de NuGet, de las imágenes base y de las acciones, y las de seguridad en cuanto se publican. Para validar las specs sin instalar Node, puedes usar la misma imagen que la CI:
@@ -162,6 +204,7 @@ Este laboratorio sirve también para **aprender** los conceptos que valida. La c
 - [Contenedores en sistemas agénticos](docs/learn/07-contenedores-en-sistemas-agenticos.md): diseño, secretos, endurecimiento y coste.
 - [Estructura y estándares de la solución .NET](docs/learn/08-estructura-y-estandares-de-la-solucion-dotnet.md): capas, SDK, paquetes, saltos de línea y globalización invariante.
 - [Integración continua y cadena de suministro](docs/learn/09-integracion-continua-y-cadena-de-suministro.md): CI, checks obligatorios, acciones fijadas por SHA, Dependabot y escaneo de imágenes.
+- [Configuración y secretos en una consola .NET](docs/learn/10-configuracion-y-secretos-en-net.md): host genérico, fuentes de configuración, User Secrets, secretos por fichero, validación al arrancar y códigos de salida.
 - [Glosario](docs/learn/glosario.md)
 
 ## Flujo de trabajo con OpenSpec
@@ -225,7 +268,7 @@ agentic-ai-sandbox/
 
 ## Estado
 
-Fase 1 (**Setup de solución**) completada. Siguiente: **fase 2 · Infraestructura base**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fases 1 (**Setup de solución**) y 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek) completadas. Siguiente: **fase 3 · Servicios dummy**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

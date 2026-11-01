@@ -1,6 +1,6 @@
 # 4. Herramientas de Microsoft: qué problema resuelven y cómo
 
-> **Estado**: documento base. **Verificado**: 2026-10-31 contra Microsoft Learn. Versiones estables más recientes en NuGet a esa fecha: `Microsoft.Extensions.AI` (y `.Abstractions` y `.OpenAI`) 10.11.0, `OpenAI` 2.14.0, `Microsoft.Extensions.Hosting` 10.0.14, `Microsoft.Agents.AI` 1.27.0, `ModelContextProtocol` 2.3.0. **Corrección**: la primera versión de este documento citaba 10.10.x y 1.13.0, copiadas de páginas de referencia de Microsoft Learn que estaban desfasadas. Las versiones **no se leen de la documentación**: se comprueban en la fuente primaria (NuGet) al fijarlas, y se reverifican en cada fase (ver `AGENTS.md`, sección 11).
+> **Estado**: documento base. **Verificado**: 2026-10-31 contra Microsoft Learn. Versiones estables más recientes en NuGet a esa fecha: `Microsoft.Extensions.AI` (y `.Abstractions` y `.OpenAI`) 10.11.0, `OpenAI` 2.14.0, `Microsoft.Extensions.Hosting` 10.0.14, `Microsoft.Agents.AI` 1.27.0, `ModelContextProtocol` 2.3.0. **Corrección**: la primera versión de este documento citaba 10.10.x y 1.13.0, copiadas de páginas de referencia de Microsoft Learn que estaban desfasadas. Las versiones **no se leen de la documentación**: se comprueban en la fuente primaria (NuGet) al fijarlas, y se reverifican en cada fase (ver `AGENTS.md`, sección 11). **Fase 2** (change `add-deepseek-chat-client`, 2026-11-01): reverificadas las mismas versiones en NuGet, todas con licencia MIT. La sección 4 recoge lo comprobado al conectar DeepSeek con llamadas reales y con tests sin red.
 
 ## El problema de fondo
 
@@ -65,7 +65,7 @@ Capas incluidas o disponibles:
 
 **Cómo**:
 
-- **`AIFunctionFactory.Create(método)`** genera una `AIFunction` a partir de un método .NET. El nombre, la descripción (`[Description]`) y el schema salen de la firma.
+- **`AIFunctionFactory.Create(método)`** genera una `AIFunction` a partir de un método .NET. El nombre, la descripción (`[Description]`) y el schema salen de la firma. **Observado en el explore de la fase 2**: con una función local de las instrucciones de nivel superior, el nombre generado fue `_Main_g_GetOrderStatus_0_2`, que es el nombre interno que le da el compilador, y así se lo envió al modelo. Hay que dar **siempre un nombre explícito** (`AIFunctionFactory.Create(método, name: "get_order_status")`), como pide `AGENTS.md` (sección 4).
 - **`FunctionInvokingChatClient`** envuelve un `IChatClient`: cuando el modelo pide una tool, la invoca, recoge el resultado y continúa la conversación hasta que hay respuesta final.
 
 Propiedades relevantes para guardrails (valores por defecto documentados):
@@ -83,7 +83,46 @@ Propiedades relevantes para guardrails (valores por defecto documentados):
 
 **Qué resuelve**: conectar el SDK oficial de OpenAI (`OpenAI`) con `IChatClient`.
 
-**Cómo**: método de extensión `AsIChatClient()` sobre un `ChatClient` de OpenAI. Como DeepSeek expone una API compatible con OpenAI, se usa este mismo adaptador apuntando el cliente a otro *endpoint* (la clave se configura en el cliente OpenAI). **(A verificar en la fase 2)** la forma exacta de fijar el endpoint y los límites de compatibilidad de DeepSeek.
+**Cómo**: método de extensión `AsIChatClient()` sobre un `ChatClient` de OpenAI. Como DeepSeek expone una API compatible con OpenAI, se usa este mismo adaptador apuntando el cliente a otro *endpoint* (la clave se configura en el cliente OpenAI).
+
+### 4.1. Conectar DeepSeek (comprobado en la fase 2)
+
+Lo que sigue se comprobó el 2026-11-01 con `OpenAI` 2.14.0 y `Microsoft.Extensions.AI.OpenAI` 10.11.0: primero con una consola desechable en el explore y después con el Runner y con tests que usan un transporte HTTP simulado. El código está en [`src/Sandbox.Agents/Chat/`](../../src/Sandbox.Agents/Chat/).
+
+**El endpoint** se fija en `OpenAIClientOptions.Endpoint`, y la clave con un `ApiKeyCredential`:
+
+```csharp
+var options = new OpenAIClientOptions { Endpoint = new Uri("https://api.deepseek.com") };
+IChatClient client = new ChatClient("deepseek-flash", new ApiKeyCredential(apiKey), options).AsIChatClient();
+```
+
+El SDK hace `POST https://api.deepseek.com/chat/completions` con la cabecera `Authorization: Bearer <clave>`. Lo comprueba un test (`DeepSeekChatClientFactoryTests`) que captura la petición sin red.
+
+**Los modelos de DeepSeek** (documentación de DeepSeek, *Models & Pricing*, consultada el 2026-11-01) son `deepseek-flash` y `deepseek-v4-pro`. Los nombres antiguos, `deepseek-chat` y `deepseek-reasoner`, se siguen aceptando, pero **la respuesta dice que contestó `deepseek-flash`**: es un remapeo silencioso. Lo vimos en el explore y otra vez con el Runner (tarea 4.2): con `DeepSeek__Model=deepseek-chat`, el registro avisa "se pidió deepseek-chat y respondió deepseek-flash". Por eso `UsageLoggingChatClient` compara el modelo pedido con el que respondió.
+
+**El modo *thinking*.** Los dos modelos razonan antes de contestar **por defecto**. La respuesta trae el razonamiento en el campo `reasoning_content`, y el adaptador lo convierte en un `TextReasoningContent`, separado del `TextContent` de la respuesta. Según Microsoft Learn, `TextReasoningContent` representa el "pensamiento" del modelo y es distinto del texto de salida: ninguno de los dos tipos deriva del otro. Por tanto, `response.Text` solo devuelve la respuesta. Medido con "Responde solo con la palabra: hola":
+
+| Modo | Tokens | De ellos, razonamiento | Latencia |
+|---|---|---|---|
+| *Thinking* activado (por defecto de DeepSeek) | 53 | 11 | 1,3 s |
+| *Thinking* desactivado | 15 | 0 | 1,3 s |
+
+**Desactivar el razonamiento** exige enviar `"thinking": {"type": "disabled"}`, un campo que no existe en la API de OpenAI y que `ChatOptions` no puede expresar. Se hace en dos pasos:
+
+1. `ChatOptions.RawRepresentationFactory` permite devolver las opciones **propias del proveedor** (aquí, `ChatCompletionOptions` del SDK de OpenAI). Microsoft Learn lo describe como la vía para "un ajuste específico de la implementación que no exponen las propiedades tipadas de `ChatOptions`", y recomienda devolver una instancia nueva en cada llamada.
+2. `ChatCompletionOptions.Patch` es un `JsonPatch` de `System.ClientModel` que añade campos arbitrarios al JSON de la petición: `Patch.Set("$.thinking"u8, BinaryData.FromString("""{"type":"disabled"}"""))`. **Es una API experimental**: el compilador emite el diagnóstico `SCME0001`, que en este proyecto es un error (`TreatWarningsAsErrors`). Se suprime solo en [`ThinkingSwitch.cs`](../../src/Sandbox.Agents/Chat/ThinkingSwitch.cs), con un comentario que lo justifica, y un test sin red comprueba el JSON enviado: si una versión del SDK lo rompe, falla ese test.
+
+El Runner deja el razonamiento desactivado por defecto (`DeepSeek:Thinking=false`), porque el saludo no lo necesita y cuesta tokens. El modelo y el razonamiento se configuran en `appsettings.json`, en variables de entorno o en la línea de comandos ([documento 10](10-configuracion-y-secretos-en-net.md)).
+
+**Caché de *prompt***: DeepSeek la aplica sola, sin pedirla. En la segunda petición de una *tool call*, 256 de los 399 tokens de entrada salieron de caché (campos `prompt_cache_hit_tokens` y `prompt_cache_miss_tokens` de `usage`, que el adaptador no expone como propiedades tipadas). Importa en la fase 4: un bucle de tools reenvía el mismo prefijo una y otra vez.
+
+**Errores: el 401 repite parte de la clave.** Con una clave inválida, DeepSeek responde HTTP 401 con el mensaje "Authentication Fails, Your api key: \*\*\*\*xxxx is invalid", donde `xxxx` son **los 4 últimos caracteres de la clave enviada**. El SDK lo convierte en un `ClientResultException` cuyo `Message` incluye ese texto, así que registrarlo o mostrarlo filtraría parte de la clave. `ProviderErrorTranslatingChatClient` lo sustituye por un `ChatProviderException` con solo el tipo de error y el código HTTP, sin el mensaje ni la excepción original. Lo comprobamos de verdad (tarea 4.2): con una clave inválida, el Runner sale con el código 3 y ni su salida ni sus registros contienen fragmentos de la clave.
+
+**Reintentos implícitos del SDK.** Medido con un transporte simulado: por defecto, el SDK de OpenAI **reintenta 3 veces** (4 llamadas) ante un 429 o un fallo de conexión. Tras agotar los reintentos de un fallo de conexión, lanza un `AggregateException` en vez de un `ClientResultException`. El proyecto fija `RetryPolicy = new ClientRetryPolicy(maxRetries: 0)` por tres motivos: cada reintento de un LLM cuesta tokens, no queda registrado, y el `AggregateException` escaparía a la traducción de errores. Sin reintentos, el fallo de conexión llega como `ClientResultException` con `Status = 0`. La política de reintentos explícita es de la fase 5.
+
+**Medido con el Runner** (tareas 4.1 y 4.2, `deepseek-flash` sin razonamiento): el saludo tarda 1,1–1,4 s de llamada (unos 5 s el proceso entero con `dotnet run`) y gasta 13 tokens de entrada y 2 de salida.
+
+**Qué no se ha comprobado todavía**: si con el razonamiento activado y tools hay que reenviar `reasoning_content` en los turnos siguientes (en el explore llegó vacío en los turnos con tools), el *streaming* contra DeepSeek y los límites de peticiones. Son de la fase 4.
 
 ## 5. Microsoft Agent Framework (referencia, **fuera del alcance inicial**)
 

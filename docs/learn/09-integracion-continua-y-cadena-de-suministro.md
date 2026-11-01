@@ -38,7 +38,7 @@ Fichero: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml). Tres jobs
 | Job (= nombre del check) | Qué hace | Tiempo en frío / con caché |
 |---|---|---|
 | `test` | `docker build --target test` sobre el mismo `Dockerfile` que en local | 51 s / 14 s |
-| `image` | Construye la imagen final, la ejecuta una vez con las restricciones del `runner` de compose y la escanea con Grype | 2 min 20 s / 1 min 36 s |
+| `image` | Construye la imagen final, la ejecuta una vez con las restricciones del `runner` de compose y la escanea con Grype. Sin clave, la ejecución debe terminar con el código 2 (configuración inválida) y nombrar `DeepSeek:ApiKey` (desde la fase 2; ver [documento 10](10-configuracion-y-secretos-en-net.md)) | 2 min 20 s / 1 min 36 s |
 | `openspec` | `openspec validate --all --strict` con la CLI fijada en [`tools/openspec/Dockerfile`](../../tools/openspec/Dockerfile) | 13 s / 14 s |
 
 Los tiempos son de una sola ejecución de cada tipo en el PR #13 (2026-10-31). "Con caché" significa sin cambios de código: en `test`, todos los pasos salieron `CACHED`, también el de los tests.

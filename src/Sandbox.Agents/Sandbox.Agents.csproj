@@ -1,6 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Sandbox.Application\Sandbox.Application.csproj" />
     <ProjectReference Include="..\Sandbox.Domain\Sandbox.Domain.csproj" />
   </ItemGroup>

@@ -4,8 +4,12 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
-  <!-- Versiones estables más recientes, verificadas en NuGet el 2026-10-31 -->
+  <!-- Versiones estables más recientes, verificadas en NuGet el 2026-10-31 (xunit.v3) y el 2026-11-01 (el resto) -->
   <ItemGroup>
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.11.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.KeyPerFile" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
     <PackageVersion Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>
 

@@ -112,3 +112,22 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **Caché `gha` (BuildKit)** | Caché de capas de BuildKit guardada en la caché de GitHub Actions; separada por `scope` |
 | **`workflow_dispatch`** | Disparador para lanzar un workflow a mano; solo funciona si el workflow está en la rama por defecto |
 | **Telemetría** | Envío de estadísticas de uso por parte de una herramienta; la CLI de OpenSpec la tiene y se desactiva con `OPENSPEC_TELEMETRY=0` |
+| **Host genérico** | `Microsoft.Extensions.Hosting`: arranque estándar de una app .NET con inyección de dependencias, configuración y registro; `Host.CreateApplicationBuilder` lo prepara con valores por defecto |
+| **Raíz de contenido (*content root*)** | Carpeta desde la que el host busca ficheros como `appsettings.json`; por defecto, el directorio actual |
+| **Proveedor de configuración** | Fuente de pares clave-valor (fichero JSON, variables de entorno, línea de comandos, ficheros de secretos…); el último añadido sobrescribe a los anteriores |
+| **Entorno (`DOTNET_ENVIRONMENT`)** | Nombre del entorno de ejecución (`Development`, `Production`…); si no se define, es `Production` |
+| **User Secrets** | Fichero JSON en el perfil del usuario, fuera del repositorio, para credenciales de desarrollo; el host solo lo carga en `Development` y no está cifrado |
+| **`launchSettings.json`** | Perfiles de lanzamiento de `dotnet run` y de los IDE (variables de entorno, argumentos); no llega a la publicación |
+| ***Key-per-file*** | Proveedor de configuración que convierte cada fichero de un directorio en una clave; encaja con los secretos de Docker en `/run/secrets` |
+| **Secreto de compose** | Fichero que compose monta dentro del contenedor (por defecto en `/run/secrets/<nombre>`); no aparece en las variables de entorno ni en `docker inspect` |
+| **Patrón de opciones** | Agrupar una sección de configuración en una clase tipada (`IOptions<T>`) con validación propia |
+| **`ValidateOnStart`** | Ejecuta la validación de unas opciones al arrancar el host en lugar de cuando se leen por primera vez |
+| **Código de salida** | Número que devuelve un proceso al terminar; `0` es éxito y el resto lo define cada programa (aquí, `ExitCodes`) |
+| **Salida estándar / de errores (`stdout` / `stderr`)** | Los dos flujos de salida de una consola; aquí el resultado va por el primero y los registros y errores por el segundo |
+| **Razonamiento (*thinking*)** | Fase en la que un modelo "piensa" antes de responder; cuesta tokens de salida. En DeepSeek está activado por defecto y aquí se desactiva |
+| **`TextReasoningContent`** | Contenido de `Microsoft.Extensions.AI` que lleva el razonamiento del modelo, separado del `TextContent` de la respuesta |
+| **`RawRepresentationFactory`** | Propiedad de `ChatOptions` que devuelve las opciones propias del proveedor, para ajustes que `ChatOptions` no expresa |
+| **`JsonPatch` (`SCME0001`)** | API experimental de `System.ClientModel` que añade campos arbitrarios al JSON de una petición; aquí, `thinking` |
+| **Remapeo de modelo** | El proveedor atiende una petición con un modelo distinto del pedido; en DeepSeek, `deepseek-chat` responde como `deepseek-flash` |
+| **Caché de *prompt*** | El proveedor reutiliza el prefijo repetido de las peticiones y lo cobra más barato; DeepSeek la aplica sin pedirla |
+| **Transporte HTTP simulado** | `HttpMessageHandler` de pruebas que devuelve respuestas grabadas; permite probar el cliente real sin red |
