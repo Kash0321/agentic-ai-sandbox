@@ -6,6 +6,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using Sandbox.Agents.Chat;
+using Sandbox.Application;
+using Sandbox.Application.FaultInjection;
 
 namespace Sandbox.Runner;
 
@@ -50,6 +52,9 @@ public static partial class RunnerHost
             services.GetRequiredService<ILoggerFactory>()));
         builder.Services.AddSingleton<GreetingRunner>();
 
+        builder.Services.AddSandboxApplication()
+            .Bind(builder.Configuration.GetSection(FaultInjectionOptions.SectionName));
+
         return builder;
     }
 
@@ -79,8 +84,12 @@ public static partial class RunnerHost
         }
         catch (OptionsValidationException exception)
         {
-            await error.WriteLineAsync($"Configuración inválida: {string.Join(" ", exception.Failures)}");
-            return ExitCodes.InvalidConfiguration;
+            return await ReportInvalidConfigurationAsync(error, [exception]);
+        }
+        catch (AggregateException exception) when (exception.InnerExceptions.All(inner => inner is OptionsValidationException))
+        {
+            // Con más de un tipo de opciones inválido, StartAsync las agrupa (observado en el change add-order-domain).
+            return await ReportInvalidConfigurationAsync(error, exception.InnerExceptions.Cast<OptionsValidationException>());
         }
         catch (ChatProviderException exception)
         {
@@ -102,6 +111,15 @@ public static partial class RunnerHost
             await error.WriteLineAsync("Error inesperado. El detalle está en el registro de errores.");
             return ExitCodes.UnexpectedError;
         }
+    }
+
+    private static async Task<int> ReportInvalidConfigurationAsync(
+        TextWriter error,
+        IEnumerable<OptionsValidationException> exceptions)
+    {
+        var failures = exceptions.SelectMany(exception => exception.Failures);
+        await error.WriteLineAsync($"Configuración inválida: {string.Join(" ", failures)}");
+        return ExitCodes.InvalidConfiguration;
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Fallo al llamar al modelo: {Category}, HTTP {StatusCode}")]

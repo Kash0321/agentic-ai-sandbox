@@ -1,6 +1,6 @@
 # 10. Configuración y secretos en una consola .NET
 
-> **Estado**: creado con el change `add-deepseek-chat-client` (fase 2). Describe cómo arranca el Runner, de dónde lee su configuración, cómo recibe la API key de DeepSeek sin que aparezca en ningún sitio y qué código de salida devuelve. **Verificado**: 2026-11-01 contra Microsoft Learn (*Configuration in .NET*, *Configuration providers in .NET*, *Options pattern in .NET*, la referencia de `Host.CreateApplicationBuilder` y de `ConsoleLoggerOptions`, y *dotnet run*), y con ejecuciones reales del Runner y experimentos en el scratchpad. Lo que no se ha podido comprobar se marca **(no verificado)**.
+> **Estado**: creado con el change `add-deepseek-chat-client` (fase 2); ampliado con `add-order-domain` (fase 3) con la sección `FaultInjection` y el caso de varias opciones inválidas a la vez. Describe cómo arranca el Runner, de dónde lee su configuración, cómo recibe la API key de DeepSeek sin que aparezca en ningún sitio y qué código de salida devuelve. **Verificado**: 2026-11-01 contra Microsoft Learn (*Configuration in .NET*, *Configuration providers in .NET*, *Options pattern in .NET*, la referencia de `Host.CreateApplicationBuilder` y de `ConsoleLoggerOptions`, y *dotnet run*), y con ejecuciones reales del Runner y experimentos en el scratchpad. Lo que no se ha podido comprobar se marca **(no verificado)**.
 
 ## Qué es y por qué importa aquí
 
@@ -121,9 +121,42 @@ builder.Services.AddSingleton<IValidateOptions<DeepSeekOptions>, DeepSeekOptions
 - `Bind` rellena la clase con los valores de la sección. Los valores por defecto de la clase se mantienen si la configuración no dice nada.
 - `PostConfigure` se ejecuta después de todas las configuraciones, y lo usamos para normalizar la clave.
 - `IValidateOptions<T>` es un validador en su propia clase. La alternativa son las *data annotations* (`[Required]`) con `ValidateDataAnnotations()`, más corta pero con mensajes genéricos y un paquete más.
-- **`ValidateOnStart`**: según Microsoft Learn, la validación se ejecuta al crear la instancia de opciones por primera vez, que puede ser en mitad de la ejecución. `ValidateOnStart` la adelanta al arranque del host: `StartAsync` lanza `OptionsValidationException` si algo falla. Lo observamos así con un solo tipo de opciones (no llega envuelta en `AggregateException`).
+- **`ValidateOnStart`**: según Microsoft Learn, la validación se ejecuta al crear la instancia de opciones por primera vez, que puede ser en mitad de la ejecución. `ValidateOnStart` la adelanta al arranque del host: `StartAsync` lanza `OptionsValidationException` si algo falla. Lo observamos así con un solo tipo de opciones (no llega envuelta en `AggregateException`). **Con dos tipos de opciones inválidos a la vez, sí llega envuelta**: ver [Varias secciones validadas al arrancar](#varias-secciones-validadas-al-arrancar).
 
 Sin `ValidateOnStart`, el Runner fallaría al pedir el `IChatClient`, que es cuando se leen las opciones: el error sería el mismo, pero más tarde y mezclado con la lógica del saludo.
+
+## Varias secciones validadas al arrancar
+
+Desde la fase 3 (change `add-order-domain`), el Runner valida al arrancar una segunda sección: `FaultInjection`, la configuración del inyector de fallos ([documento 11](11-dominios-aptos-para-agentes.md#inyección-de-fallos-reproducible)). El registro sigue el mismo patrón, con una diferencia: quien registra las opciones es la capa de aplicación, y quien las enlaza a la configuración es el Runner.
+
+```csharp
+// Sandbox.Application: registra servicios, validador y ValidateOnStart, sin depender de IConfiguration
+public static OptionsBuilder<FaultInjectionOptions> AddSandboxApplication(this IServiceCollection services) { ... }
+
+// Sandbox.Runner (raíz de composición): enlaza la sección
+builder.Services.AddSandboxApplication()
+    .Bind(builder.Configuration.GetSection(FaultInjectionOptions.SectionName));
+```
+
+Devolver el `OptionsBuilder` permite que `Sandbox.Application` no dependa de `Microsoft.Extensions.Configuration`. `ValidateOnStart` está en el paquete `Microsoft.Extensions.Options`, no solo en `Hosting` (comprobado en el ensamblado de la versión 10.0.14).
+
+Lo que comprobamos en el apply (2026-11-01):
+
+- **Con dos tipos de opciones inválidos a la vez** (sin clave y con una regla del inyector inválida), `StartAsync` **no** lanza `OptionsValidationException`, sino un `AggregateException` con las dos dentro. Lo fija el test `StartAsync_WithTwoInvalidOptionTypes_ThrowsAggregateOfOptionsValidationExceptions`. Sin tratarlo, el Runner habría devuelto el código 1 (error inesperado) en lugar del 2. Ahora `RunAsync` captura el `AggregateException` cuando **todas** sus excepciones internas son de validación de opciones, y muestra todos los fallos:
+
+  ```
+  $ FaultInjection__Rules__0__Operation=DeleteEverything FaultInjection__Rules__0__Trigger=Always dotnet Sandbox.Runner.dll
+  Configuración inválida: DeepSeek:ApiKey es obligatoria. FaultInjection:Rules:0:Operation debe ser una de: PlaceOrder, CancelOrder, ShipOrder, GetOrder, GetCustomer, GetStock, *.
+  (código de salida 2)
+  ```
+
+- **El *binder* convierte** a enumerados textos como `"FirstCalls"`, a `TimeSpan` textos como `"00:00:00.200"` y a `double` textos como `"0.3"`, y rellena una lista aunque la propiedad sea de solo lectura (`IList<FaultRule> Rules { get; } = []`). Lo comprueba `FaultInjectionBindingTests`.
+- **Una lista se configura por índices**: `FaultInjection:Rules:0:Operation` en la línea de comandos, o `FaultInjection__Rules__0__Operation` como variable de entorno.
+
+Errores típicos de este caso:
+
+- capturar solo `OptionsValidationException` y dar por hecho que es la única forma en que falla la validación;
+- capturar **cualquier** `AggregateException` como error de configuración: puede envolver otros fallos de arranque, y por eso el filtro exige que todas sean de validación.
 
 ## Por qué los mensajes de validación no muestran valores
 
@@ -169,12 +202,13 @@ El **código de salida** es el número que un proceso devuelve al terminar. Por 
 |---|---|---|
 | `0` | Éxito | El saludo con la clave en User Secrets |
 | `1` | Error inesperado | Cualquier excepción no prevista: mensaje genérico y el detalle solo en el registro |
-| `2` | Configuración inválida | Sin clave, o con la clave solo en User Secrets y el entorno `Production` |
+| `2` | Configuración inválida | Sin clave, o con la clave solo en User Secrets y el entorno `Production`; desde la fase 3, también una regla del inyector de fallos inválida |
 | `3` | Fallo al llamar al modelo | Clave rechazada (HTTP 401), límite de peticiones, error del proveedor o de red |
 
 ```
 RunnerHost.RunAsync
   StartAsync (ValidateOnStart) --- OptionsValidationException --> 2 "Configuración inválida: ..."
+        |                  \----- AggregateException de ellas -> 2 (varias secciones inválidas)
         |
         v
   GreetingRunner.RunAsync ------- ChatProviderException ------> 3 "Fallo al llamar al modelo: ..."
@@ -195,6 +229,7 @@ Los valores 2 y 3 son criterio propio. No hay un estándar de códigos para .NET
 | Valores por defecto sin clave | [`src/Sandbox.Runner/appsettings.json`](../../src/Sandbox.Runner/appsettings.json) |
 | `Development` para `dotnet run` | [`src/Sandbox.Runner/Properties/launchSettings.json`](../../src/Sandbox.Runner/Properties/launchSettings.json) |
 | Opciones y validador | [`src/Sandbox.Agents/Chat/DeepSeekOptions.cs`](../../src/Sandbox.Agents/Chat/DeepSeekOptions.cs), [`DeepSeekOptionsValidator.cs`](../../src/Sandbox.Agents/Chat/DeepSeekOptionsValidator.cs) |
+| Opciones del inyector, su validador y su registro | [`src/Sandbox.Application/FaultInjection/`](../../src/Sandbox.Application/FaultInjection/), [`ApplicationServiceCollectionExtensions.cs`](../../src/Sandbox.Application/ApplicationServiceCollectionExtensions.cs) |
 | Tests de configuración y de códigos de salida | [`tests/Sandbox.Scenarios.Tests/Runner/`](../../tests/Sandbox.Scenarios.Tests/Runner/) |
 | Requisitos | Specs `runner-host` y `chat-client` (`openspec/specs/`) |
 | Decisiones y experimentos | `design.md` del change `add-deepseek-chat-client` (D2, D4 y D5) |
