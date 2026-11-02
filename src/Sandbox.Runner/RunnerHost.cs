@@ -5,9 +5,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
+using Sandbox.Agents.Agent;
 using Sandbox.Agents.Chat;
+using Sandbox.Agents.Tools;
 using Sandbox.Application;
 using Sandbox.Application.FaultInjection;
+using Sandbox.Runner.Agent;
 
 namespace Sandbox.Runner;
 
@@ -32,6 +35,9 @@ public static partial class RunnerHost
             ContentRootPath = AppContext.BaseDirectory,
         });
 
+        // --scenario, --prompt y --customer se traducen a la sección Agent. Va antes de los secretos, que mantienen la
+        // máxima prioridad; las claves no se solapan.
+        builder.Configuration.AddCommandLine(args, new Dictionary<string, string>(AgentOptions.CommandLineSwitches));
         builder.Configuration.AddKeyPerFile(secretsDirectory, optional: true);
 
         // La salida estándar queda solo para el resultado; todos los registros van a la de errores.
@@ -52,10 +58,42 @@ public static partial class RunnerHost
             services.GetRequiredService<ILoggerFactory>()));
         builder.Services.AddSingleton<GreetingRunner>();
 
+        var configuration = builder.Configuration;
         builder.Services.AddSandboxApplication()
-            .Bind(builder.Configuration.GetSection(FaultInjectionOptions.SectionName));
+            .Bind(configuration.GetSection(FaultInjectionOptions.SectionName))
+            // Los fallos de un escenario se suman a los configurados, sin pisar sus índices. Se lee el escenario de la
+            // configuración y no de AgentOptions para no encadenar su validación con la del inyector.
+            .PostConfigure(faults =>
+            {
+                var scenario = ScenarioCatalog.Find(configuration[$"{AgentOptions.SectionName}:{nameof(AgentOptions.Scenario)}"]);
+                foreach (var rule in scenario?.CreateFaults() ?? [])
+                {
+                    faults.Rules.Add(rule);
+                }
+            });
+
+        AddAgent(builder.Services);
 
         return builder;
+    }
+
+    /// <summary>Cliente de sesión: el indicado; si no, el del escenario; si tampoco, el cliente por defecto.</summary>
+    internal static string ResolveCustomerId(AgentOptions options) =>
+        options.CustomerId
+        ?? ScenarioCatalog.Find(options.Scenario)?.CustomerId
+        ?? AgentOptions.DefaultCustomerId;
+
+    private static void AddAgent(IServiceCollection services)
+    {
+        services.AddOptions<AgentOptions>()
+            .BindConfiguration(AgentOptions.SectionName)
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<AgentOptions>, AgentOptionsValidator>();
+        services.AddSingleton(provider => new SalesSession(
+            ResolveCustomerId(provider.GetRequiredService<IOptions<AgentOptions>>().Value)));
+        services.AddSingleton<SalesTools>();
+        services.AddSingleton<SalesAgent>();
+        services.AddSingleton<AgentRunner>();
     }
 
     /// <summary>
@@ -78,7 +116,15 @@ public static partial class RunnerHost
         try
         {
             await host.StartAsync(cancellationToken);
-            await host.Services.GetRequiredService<GreetingRunner>().RunAsync(output, cancellationToken);
+            if (host.Services.GetRequiredService<IOptions<AgentOptions>>().Value.RunsAgent)
+            {
+                await host.Services.GetRequiredService<AgentRunner>().RunAsync(output, cancellationToken);
+            }
+            else
+            {
+                await host.Services.GetRequiredService<GreetingRunner>().RunAsync(output, cancellationToken);
+            }
+
             await host.StopAsync(cancellationToken);
             return ExitCodes.Success;
         }

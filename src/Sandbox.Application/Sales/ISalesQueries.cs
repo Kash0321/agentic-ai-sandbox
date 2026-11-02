@@ -10,4 +10,6 @@ public interface ISalesQueries
     Task<Result<CustomerView>> GetCustomerAsync(GetCustomerQuery query, CancellationToken cancellationToken = default);
 
     Task<Result<StockView>> GetStockAsync(GetStockQuery query, CancellationToken cancellationToken = default);
+
+    Task<Result<IReadOnlyList<StockView>>> ListProductsAsync(ListProductsQuery query, CancellationToken cancellationToken = default);
 }

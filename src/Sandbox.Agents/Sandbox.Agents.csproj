@@ -6,6 +6,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Agent\SystemPrompt.md" LogicalName="Sandbox.Agents.SystemPrompt.md" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Sandbox.Application\Sandbox.Application.csproj" />
     <ProjectReference Include="..\Sandbox.Domain\Sandbox.Domain.csproj" />
   </ItemGroup>

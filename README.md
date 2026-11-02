@@ -117,7 +117,12 @@ Tokens: 13 de entrada y 2 de salida
   $key = $null
   ```
 - Alternativa por variable de entorno, en cualquier entorno: `DeepSeek__ApiKey=<tu-api-key>`.
-- Los escenarios (`--scenario <id>`) llegan en la fase 4.
+- Para que el agente atienda una petición, con tools sobre el dominio dummy, añade argumentos tras `--` al comando del paso 4 (`dotnet run --project src/Sandbox.Runner -- --scenario happy-order`):
+  - `-- --scenario happy-order` crea un pedido de dos tazas;
+  - `-- --scenario lost-response` hace lo mismo con la primera respuesta perdida, para ver el reintento idempotente;
+  - `-- --prompt "¿Qué productos tenéis?"` envía un texto libre.
+
+  Añade `--customer CUST-002` para actuar como otro cliente; por defecto, `CUST-001`. La salida muestra la respuesta final y un resumen con las llamadas al modelo, las tools y los tokens. Cada ejecución hace varias llamadas al modelo: un pedido gasta unos 4.500 tokens de entrada. Detalle en [`docs/learn/12-diseno-de-tools-para-llms.md`](docs/learn/12-diseno-de-tools-para-llms.md).
 - El inyector de fallos de los servicios dummy se activa con la sección `FaultInjection` (por ejemplo, `--FaultInjection:Rules:0:Operation=PlaceOrder --FaultInjection:Rules:0:Trigger=Always`). Sin ella no hace nada, y una regla inválida termina con el código 2. Detalle en [`docs/learn/11-dominios-aptos-para-agentes.md`](docs/learn/11-dominios-aptos-para-agentes.md).
 
 Configuración por defecto (`src/Sandbox.Runner/appsettings.json`, sin clave):
@@ -259,7 +264,7 @@ agentic-ai-sandbox/
 ├── src/
 │   ├── Sandbox.Domain/            # Entidades, records, reglas de negocio
 │   ├── Sandbox.Application/       # Commands/Queries, servicios dummy in-memory, inyector de fallos
-│   ├── Sandbox.Agents/            # Tools (AIFunction), pipeline, guardrails, runner
+│   ├── Sandbox.Agents/            # Cliente de chat, tools (AIFunction), agente y system prompt
 │   └── Sandbox.Runner/            # Host de consola: DI, config, escenarios
 └── tests/
     ├── Sandbox.Domain.Tests/
@@ -270,7 +275,7 @@ agentic-ai-sandbox/
 
 ## Estado
 
-Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek) y 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) completadas. Siguiente: **fase 4 · Pipeline agéntico**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) y 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) completadas. Siguiente: **fase 5 · Guardrails**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

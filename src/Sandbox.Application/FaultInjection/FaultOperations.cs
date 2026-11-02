@@ -9,10 +9,11 @@ public static class FaultOperations
     public const string GetOrder = nameof(GetOrder);
     public const string GetCustomer = nameof(GetCustomer);
     public const string GetStock = nameof(GetStock);
+    public const string ListProducts = nameof(ListProducts);
 
     /// <summary>Comodín: la regla se aplica a todas las operaciones.</summary>
     public const string All = "*";
 
     public static IReadOnlyList<string> Known { get; } =
-        [PlaceOrder, CancelOrder, ShipOrder, GetOrder, GetCustomer, GetStock, All];
+        [PlaceOrder, CancelOrder, ShipOrder, GetOrder, GetCustomer, GetStock, ListProducts, All];
 }

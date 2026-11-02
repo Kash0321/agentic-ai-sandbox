@@ -28,6 +28,14 @@ public sealed class FaultInjectionOptionsValidatorTests
     }
 
     [Fact]
+    public void Validate_RuleOnListProducts_Succeeds()
+    {
+        var result = Validate(Rule(FaultOperations.ListProducts, FaultTrigger.Always));
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
     public void Validate_WithUnknownOperation_FailsNamingTheRuleOperation()
     {
         var result = Validate(Rule("DeleteEverything", FaultTrigger.Always));

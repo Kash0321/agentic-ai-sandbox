@@ -14,4 +14,9 @@ public sealed class FaultInjectingSalesQueries(ISalesQueries inner, FaultInjecto
 
     public Task<Result<StockView>> GetStockAsync(GetStockQuery query, CancellationToken cancellationToken = default) =>
         injector.RunAsync(FaultOperations.GetStock, token => inner.GetStockAsync(query, token), cancellationToken);
+
+    public Task<Result<IReadOnlyList<StockView>>> ListProductsAsync(
+        ListProductsQuery query,
+        CancellationToken cancellationToken = default) =>
+        injector.RunAsync(FaultOperations.ListProducts, token => inner.ListProductsAsync(query, token), cancellationToken);
 }

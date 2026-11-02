@@ -14,7 +14,7 @@ Sin reglas configuradas, el inyector SHALL dejar pasar todas las operaciones sin
 - **THEN** los resultados y el estado son los mismos que sin inyector, y ninguna llamada espera
 
 ### Requirement: Reglas por operación
-Cada regla SHALL aplicarse a una operación concreta (`PlaceOrder`, `CancelOrder`, `ShipOrder`, `GetOrder`, `GetCustomer` o `GetStock`) o a todas con `*`. Una regla MUST NOT afectar a las operaciones que no nombra.
+Cada regla SHALL aplicarse a una operación concreta (`PlaceOrder`, `CancelOrder`, `ShipOrder`, `GetOrder`, `GetCustomer`, `GetStock` o `ListProducts`) o a todas con `*`. Una regla MUST NOT afectar a las operaciones que no nombra.
 
 #### Scenario: Regla sobre una sola operación
 - **GIVEN** una regla que hace fallar siempre `GetStock`
@@ -25,6 +25,11 @@ Cada regla SHALL aplicarse a una operación concreta (`PlaceOrder`, `CancelOrder
 - **GIVEN** una regla con operación `*` que falla siempre
 - **WHEN** se ejecuta cualquier operación
 - **THEN** falla
+
+#### Scenario: Regla sobre el listado de productos
+- **GIVEN** una regla que hace fallar siempre `ListProducts`
+- **WHEN** se ejecutan `ListProducts` y `GetStock`
+- **THEN** `ListProducts` falla con `SERVICE_UNAVAILABLE` y `GetStock` responde con normalidad
 
 ### Requirement: Disparador siempre
 Una regla con disparador `Always` SHALL fallar en todas las llamadas a su operación.

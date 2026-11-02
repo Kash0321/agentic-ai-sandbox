@@ -17,6 +17,8 @@
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\FakeChatClient.cs" Link="Fakes\FakeChatClient.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\LogEntry.cs" Link="Fakes\LogEntry.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\RecordingLoggerProvider.cs" Link="Fakes\RecordingLoggerProvider.cs" />
+    <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScriptedChatClient.cs" Link="Fakes\ScriptedChatClient.cs" />
+    <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScriptStep.cs" Link="Fakes\ScriptStep.cs" />
   </ItemGroup>
 
   <ItemGroup>
