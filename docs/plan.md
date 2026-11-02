@@ -43,6 +43,14 @@ Criterio de salida cumplido: saludo real contra DeepSeek con `dotnet run` y con 
 
 Criterio de salida: tests de dominio y de aplicación con todas las reglas, cada transición inválida, la idempotencia, la concurrencia y los fallos inducidos (antes y después de ejecutar, y con latencia sobre un reloj falso). Las sagas multipaso quedan para un dominio ampliado más adelante.
 
+## Fase 4: un change
+
+| Change | Contenido | Estado |
+|--------|-----------|--------|
+| `add-sales-agent` | Query `ListProducts`; seis tools (`list_products`, `get_stock`, `get_customer`, `get_order`, `place_order`, `cancel_order`) con `ToolResult`/`ToolError`, nombres explícitos, cliente de sesión fuera del modelo (ADR 0004) y un borde que convierte argumentos inválidos y fallos inesperados en errores tipados; agente con `FunctionInvokingChatClient`, system prompt incrustado y resumen de la ejecución; Runner con `--scenario` (`happy-order`, `lost-response`), `--prompt` y `--customer`; modelo falso con guion para los tests | Implementado, verificado en local, en contenedor y contra DeepSeek, y archivado en la rama del change |
+
+Criterio de salida cumplido: el escenario feliz crea un pedido de extremo a extremo con DeepSeek (3 llamadas, unos 4.500 tokens de entrada) y con el modelo falso. El escenario de la respuesta perdida reintenta con la misma clave y crea un solo pedido. Los guardrails y la autorización por recurso son de la fase 5.
+
 ## Contenedores
 
 Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. Decisiones:

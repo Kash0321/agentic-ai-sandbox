@@ -1,6 +1,6 @@
 # 2. Motor de razonamiento e invocación de herramientas
 
-> **Estado**: documento base. **Verificado**: 2026-10-31 contra Microsoft Learn (`IChatClient`, `FunctionInvokingChatClient`). Las capacidades concretas de DeepSeek **no están verificadas** aquí: se contrastarán en la fase 2.
+> **Estado**: documento base, ampliado en la fase 4 (`add-sales-agent`) con las trazas reales del bucle. **Verificado**: 2026-10-31 contra Microsoft Learn (`IChatClient`, `FunctionInvokingChatClient`), y el 2026-11-02 con ejecuciones reales del Runner contra `deepseek-flash`.
 
 ## Qué es
 
@@ -82,16 +82,38 @@ Microsoft lo advierte explícitamente: "los modelos pueden alucinar argumentos q
 
 ## En este proyecto
 
-- El **Runner** orquesta una conversación, no implementa el bucle a mano: delega en `FunctionInvokingChatClient`.
-- Se acotará el bucle explícitamente (en la librería, `MaximumIterationsPerRequest` vale 40 por defecto y `MaximumConsecutiveErrorsPerRequest` vale 3; en el sandbox se fijarán valores mucho menores y se especificarán).
-- Las trazas del bucle (qué pidió el modelo, qué respondió el dominio) son material de estudio: se guardarán para analizarlas.
+Desde la fase 4 (change `add-sales-agent`):
+
+- **El agente no implementa el bucle a mano**: delega en `FunctionInvokingChatClient`. `SalesAgent` le pasa las instrucciones del sistema, la petición y las seis tools, y recoge el resultado.
+- **El bucle sigue con sus límites por defecto**: en la librería, `MaximumIterationsPerRequest` vale 40 y `MaximumConsecutiveErrorsPerRequest` vale 3. Fijar valores propios, mucho menores, es un guardrail de la fase 5.
+- **Las trazas del bucle se registran sin argumentos**: una entrada por tool (nombre, resultado y duración), los textos que el modelo emite entre llamadas y los tokens de cada llamada. Al final, el Runner muestra la respuesta y un resumen.
+
+### Trazas reales (fase 4, `deepseek-flash`, sin razonamiento)
+
+`--scenario happy-order` ("Hola, quiero pedir dos tazas rojas, por favor."), el 2026-11-02:
+
+```
+llamada 1  1.212 tokens de entrada, 22 de salida  -->  pide list_products
+           list_products: OK en 28 ms
+llamada 2  1.492 tokens de entrada, 84 de salida  -->  pide place_order (2 x SKU-MUG-RED)
+           place_order: OK en 29 ms
+llamada 3  1.758 tokens de entrada, 58 de salida  -->  responde: "Pedido ORD-0001 confirmado..."
+total      3 llamadas, 4.462 de entrada y 164 de salida
+```
+
+Lo que enseña:
+
+- **Cada llamada reenvía todo el historial**: los tokens de entrada crecen con cada turno (1.212, 1.492 y 1.758). La primera ya lleva unos 1.200 tokens solo de instrucciones y esquemas de tools.
+- **Las tools tardan milisegundos; el modelo, segundos** (entre 1,0 y 1,7 s por llamada). En un agente, el coste y la latencia son del modelo.
+- **El modelo escribe texto entre llamadas** ("Voy a buscar el producto en el catálogo."). `response.Text` lo concatena con la respuesta final, así que el Runner muestra solo el último mensaje y registra los demás.
+- **Puede pedir varias tools a la vez**: en el spike pidió `list_products` y `get_customer` en una misma respuesta, y el bucle las ejecutó en serie.
 
 ## Experimentos sugeridos (a documentar con resultados reales)
 
-1. Misma petición 10 veces: ¿la secuencia de tools es siempre la misma?
-2. Forzar un error del dominio: ¿el modelo reintenta, se corrige o se rinde?
-3. Dar al modelo una tool innecesaria: ¿la usa?
-4. Comparar modelo de chat y de razonamiento en una petición ambigua.
+1. Misma petición 10 veces: ¿la secuencia de tools es siempre la misma? **(Pendiente, fase 6.)** En las 8 ejecuciones del pedido de dos tazas (5 del spike y 3 del Runner), el modelo empezó siempre por `list_products` y terminó con `place_order`. En 2, consultó además `get_customer` sin necesidad, una de ellas en la misma respuesta que `list_products`.
+2. Forzar un error del dominio: ¿el modelo reintenta, se corrige o se rinde? **En parte**: con un `SERVICE_UNAVAILABLE` reintentable tras una respuesta perdida, `deepseek-flash` reintentó en 4 de 4 casos con la misma clave de idempotencia ([documento 12](12-diseno-de-tools-para-llms.md#idempotencia-en-manos-del-modelo)). Los errores no reintentables quedan para la fase 6.
+3. Dar al modelo una tool innecesaria: ¿la usa? **A veces**: las llamadas a `get_customer` del punto 1.
+4. Comparar modelo de chat y de razonamiento en una petición ambigua. **(Pendiente.)** Con el razonamiento activado y tools, el adaptador no reenvía el razonamiento que DeepSeek exige, aunque la API respondió igualmente ([documento 04](04-herramientas-microsoft.md)).
 
 ## Referencias
 

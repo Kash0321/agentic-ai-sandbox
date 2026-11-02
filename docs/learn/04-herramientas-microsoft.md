@@ -122,7 +122,14 @@ El Runner deja el razonamiento desactivado por defecto (`DeepSeek:Thinking=false
 
 **Medido con el Runner** (tareas 4.1 y 4.2, `deepseek-flash` sin razonamiento): el saludo tarda 1,1–1,4 s de llamada (unos 5 s el proceso entero con `dotnet run`) y gasta 13 tokens de entrada y 2 de salida.
 
-**Qué no se ha comprobado todavía**: si con el razonamiento activado y tools hay que reenviar `reasoning_content` en los turnos siguientes (en el explore llegó vacío en los turnos con tools), el *streaming* contra DeepSeek y los límites de peticiones. Son de la fase 4.
+**Razonamiento con tools (comprobado en la fase 4, 2026-11-01)**:
+
+- **Lo que dice DeepSeek** (*Thinking Mode*): sin tools, `reasoning_content` "does not need to be passed back"; con tools, "must be fully passed back to the API in all subsequent requests". Si no se reenvía, "the API will return a 400 error".
+- **Lo que hace el adaptador**: `FunctionInvokingChatClient` guarda el `TextReasoningContent` en el historial (283 caracteres en un turno del spike). Pero, capturando el cuerpo de las peticiones, los mensajes del asistente llevaban solo `role`, `content` y `tool_calls`, **sin `reasoning_content`**: la API de Chat Completions de OpenAI no tiene ese campo.
+- **Lo que pasó**: DeepSeek respondió **HTTP 200** en las 3 rondas, y el pedido se creó. La práctica contradice la documentación.
+- **Decisión**: el razonamiento sigue desactivado por defecto. Si se activa, el agente registra un aviso al empezar cada ejecución. Reenviarlo de verdad exigiría un decorador con `JsonPatch`, como el de `ThinkingSwitch`, y queda para un change propio si un día la API empieza a devolver el 400.
+
+**Qué no se ha comprobado todavía**: el *streaming* contra DeepSeek y sus límites de peticiones. El agente usa llamadas sin *streaming*.
 
 ## 5. Microsoft Agent Framework (referencia, **fuera del alcance inicial**)
 

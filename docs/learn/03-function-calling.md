@@ -1,6 +1,6 @@
 # 3. Function Calling
 
-> **Estado**: documento base. **Verificado**: 2026-10-31 contra Microsoft Learn para la parte de .NET. El formato JSON de abajo es el de las APIs compatibles con OpenAI; **hay que contrastarlo con la documentación de DeepSeek** en la fase 2 (campos y comportamientos concretos pueden variar).
+> **Estado**: documento base, ampliado en la fase 4 (`add-sales-agent`) con lo observado contra DeepSeek. **Verificado**: 2026-10-31 contra Microsoft Learn para la parte de .NET, y 2026-11-02 con llamadas reales a DeepSeek (ver "Lo observado con DeepSeek"). El formato JSON de abajo es el de las APIs compatibles con OpenAI; **hay que contrastarlo con la documentación de DeepSeek** en la fase 2 (campos y comportamientos concretos pueden variar).
 
 ## Qué es
 
@@ -90,6 +90,22 @@ var response = await client.GetResponseAsync("¿En qué estado está el pedido A
 ```
 
 (Ejemplo ilustrativo; las tools reales del proyecto siguen las reglas de `AGENTS.md`, sección 4.)
+
+## Lo observado con DeepSeek (fase 4)
+
+Con `deepseek-flash` a través de `Microsoft.Extensions.AI.OpenAI` 10.11.0 (spike y ejecuciones reales del 2026-11-01 y 2026-11-02):
+
+- **El protocolo es el de OpenAI**:
+  - las llamadas llegan como `tool_calls` del mensaje del asistente, con identificadores como `call_00_WpuX1PpotRvjS1b7xEo49042`;
+  - el adaptador las convierte en `FunctionCallContent`;
+  - los resultados vuelven como mensajes `tool`.
+- **Llamadas en paralelo**: en una respuesta, el modelo pidió dos tools a la vez (`call_00_…` y `call_01_…`). `FunctionInvokingChatClient` las ejecutó en serie y devolvió los dos resultados en la siguiente llamada.
+- **Texto junto a las llamadas**: el modelo suele acompañar una petición de tool con una frase ("Voy a buscar las tazas rojas en el catálogo."). Es contenido del mensaje del asistente, no la respuesta final.
+- **El orden de los argumentos JSON varía**: el mismo reintento llegó como `{"lines":[{"sku":…,"quantity":2}],…}` y como `{"lines":[{"quantity":2,"sku":…}],…}`. Es indiferente, porque la tool compara valores, no texto.
+- **Argumentos ausentes**: si falta un parámetro obligatorio, el bucle envía al modelo "Error: Function failed." (con `IncludeDetailedErrors` a `false`). Este proyecto lo traduce a un error tipado, `INVALID_ARGUMENTS` ([documento 12](12-diseno-de-tools-para-llms.md#el-borde-nada-de-excepciones-hacia-el-modelo)).
+- **Razonamiento con tools**: DeepSeek documenta que `reasoning_content` debe reenviarse en los turnos siguientes cuando hay tools. Capturando las peticiones, se vio que el adaptador **no lo reenvía** y que la API respondió 200 igualmente ([documento 04](04-herramientas-microsoft.md)).
+
+Una ejecución completa, del pedido a la respuesta, con los tokens de cada llamada, está en el [documento 02](02-motor-de-razonamiento-y-herramientas.md#trazas-reales-fase-4-deepseek-flash-sin-razonamiento).
 
 ## Buenas prácticas (y por qué las reglas del proyecto son así)
 

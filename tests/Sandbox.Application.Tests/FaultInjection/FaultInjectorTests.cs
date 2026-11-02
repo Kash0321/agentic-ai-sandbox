@@ -77,6 +77,18 @@ public sealed class FaultInjectorTests
     }
 
     [Fact]
+    public async Task Rule_OnListProducts_DoesNotAffectGetStock()
+    {
+        var harness = new FaultHarness(Rule(FaultOperations.ListProducts, FaultTrigger.Always));
+
+        var list = await harness.Queries.ListProductsAsync(new Sandbox.Application.Sales.ListProductsQuery(), TestContext.Current.CancellationToken);
+        var stock = await harness.GetStockAsync("SKU-MUG-RED");
+
+        ResultAssert.Fails(list, ErrorCodes.ServiceUnavailable);
+        Assert.True(stock.IsSuccess);
+    }
+
+    [Fact]
     public async Task Rule_OnEveryOperation_MakesAllOfThemFail()
     {
         var harness = new FaultHarness(Rule(FaultOperations.All, FaultTrigger.Always));

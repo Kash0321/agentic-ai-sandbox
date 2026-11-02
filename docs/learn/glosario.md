@@ -152,3 +152,13 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **`TimeProvider`** | Abstracción del reloj de .NET (desde .NET 8): hora actual, temporizadores y esperas; se inyecta para poder sustituirla en los tests |
 | **`FakeTimeProvider`** | Reloj de pruebas que solo avanza cuando el test llama a `Advance`; esperar sin avanzarlo deja el test colgado |
 | **Semilla** | Valor inicial de un generador pseudoaleatorio; con la misma semilla, la misma secuencia, pero solo dentro de la misma versión mayor de .NET |
+| **`AIFunctionFactory`** | Fábrica de `Microsoft.Extensions.AI` que convierte un método .NET en una `AIFunction`: nombre, descripción y esquema JSON a partir de los tipos y de los `[Description]` |
+| **`FunctionInvokingChatClient`** | Decorador de `IChatClient` que ejecuta el bucle agéntico: invoca las tools que pide el modelo y le devuelve los resultados hasta que responde con texto |
+| **`FunctionInvoker`** | Propiedad de `FunctionInvokingChatClient` con la que se sustituye la invocación de cada tool; aquí es el borde exterior que registra y traduce los argumentos inválidos |
+| **Borde de la tool** | Código que rodea la ejecución de una tool y convierte todo lo que no es un resultado (argumentos inválidos, fallos inesperados) en un error tipado, sin excepciones hacia el modelo |
+| **Cliente de sesión** | Cliente en cuyo nombre actúa el agente, fijado por quien lo ejecuta y nunca por el modelo; ninguna tool lo recibe como parámetro (ADR 0004) |
+| **Llamadas en paralelo (*parallel tool calls*)** | Varias peticiones de tool en una misma respuesta del modelo; el bucle las ejecuta y devuelve todos los resultados juntos |
+| **Texto intermedio** | Texto que el modelo escribe junto a una petición de tool ("Voy a buscar el producto"); no es la respuesta final |
+| **Modelo falso con guion** | Doble de prueba de `IChatClient` que devuelve, turno a turno, llamadas a tools o texto programados; permite probar el bucle sin red |
+| **Test de aprendizaje** | Test que fija el comportamiento de una librería de terceros del que depende el diseño; si una versión nueva lo cambia, falla ahí y no en el código propio |
+| ***Switch mapping*** | Correspondencia entre un argumento corto de línea de comandos (`--scenario`) y una clave de configuración (`Agent:Scenario`) |

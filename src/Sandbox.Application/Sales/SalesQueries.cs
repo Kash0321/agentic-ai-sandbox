@@ -24,6 +24,21 @@ public sealed class SalesQueries(SalesState state) : ISalesQueries
         return Find(state.Stock, query.Sku, StockView.From, () => SalesErrors.ProductNotFound(query.Sku), cancellationToken);
     }
 
+    public Task<Result<IReadOnlyList<StockView>>> ListProductsAsync(
+        ListProductsQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var products = state.Locked(() => state.Stock.Values
+            .OrderBy(item => item.Sku, StringComparer.Ordinal)
+            .Select(StockView.From)
+            .ToList());
+
+        return Task.FromResult(Result.Success<IReadOnlyList<StockView>>(products));
+    }
+
     private Task<Result<TView>> Find<TEntity, TView>(
         Dictionary<string, TEntity> source,
         string id,
