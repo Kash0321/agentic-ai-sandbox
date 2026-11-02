@@ -1,6 +1,6 @@
 # 5. Guardrails: en qué consisten y qué patrones existen
 
-> **Estado**: documento base. **Verificado**: 2026-10-31 para lo que atañe a Microsoft Learn; las referencias externas se marcan. La clasificación en capas es **síntesis propia** pensada para este proyecto, no un estándar.
+> **Estado**: documento base, ampliado en la fase 5 con los guardrails implementados (change `add-agent-guardrails`). **Verificado**: 2026-10-31 para lo que atañe a Microsoft Learn, y 2026-11-02 para las propiedades de `FunctionInvokingChatClient` citadas abajo; lo observado en el spike y en los tests de aprendizaje se marca como tal. Las referencias externas se marcan. La clasificación en capas es **síntesis propia** pensada para este proyecto, no un estándar.
 
 ## Qué son
 
@@ -90,16 +90,78 @@ Criterio del proyecto: **lo crítico es determinista**; lo probabilístico compl
 
 ## Cómo se implementa en este proyecto
 
-| Guardrail | Mecanismo en .NET | Fase |
-|-----------|-------------------|------|
-| Límite de iteraciones y errores | Propiedades de `FunctionInvokingChatClient` | 4-5 |
-| Validación de entrada, presupuesto, auditoría | `DelegatingChatClient` registrado con `Use*` en el pipeline | 5 |
-| Autorización y política por tool | Envoltorio/filtro de invocación de la tool (a confirmar) | 5 |
-| Confirmación humana | Guardrail propio que devuelve un error `CONFIRMATION_REQUIRED` hasta recibir la aprobación | 5 |
-| Reglas de negocio | Servicios de dominio | 3 |
-| Bloqueo | `ToolError` con código estable (`BLOCKED_BY_POLICY`), no excepción | 5 |
+El primer change de la fase 5 (`add-agent-guardrails`) implementa los guardrails deterministas del bucle. Cada uno tiene su requisito en la spec `agent-guardrails` y sus tests sin LLM, con un modelo falso con guion.
 
-Cada guardrail tendrá su requisito en OpenSpec con escenarios y sus tests **sin LLM**.
+| Guardrail | Mecanismo | Qué devuelve al bloquear |
+|-----------|-----------|--------------------------|
+| Límite de llamadas al modelo (`Guardrails:MaxModelCalls`, 10) | Cliente de presupuesto propio entre el bucle y el modelo; corta antes de la llamada N+1 | Motivo de parada `ModelCallLimit` |
+| Presupuesto de tokens (`Guardrails:TokenBudget`, 20.000) | El mismo cliente: acumula el uso y no inicia una llamada si se alcanzó | Motivo `TokenBudget` |
+| Errores de tool seguidos (`Guardrails:MaxConsecutiveToolErrors`, 3) | Contador en el `FunctionInvoker`, corta con `Terminate` | Motivo `ToolErrorLimit` |
+| Allow-list (`Guardrails:AllowedTools`, todas por defecto) | Solo se ofrecen las permitidas; el resto va a `AdditionalTools` para que el `FunctionInvoker` las bloquee | `ToolError` `BLOCKED_BY_POLICY` al modelo |
+| Tools inventadas | Se detectan al terminar, comparando las peticiones con lo que vio el `FunctionInvoker` | `UNKNOWN_TOOL` en el resultado y la auditoría |
+| Longitud de la petición (2.000 caracteres) | Comprobación antes de llamar al modelo | Código de salida 2 en el Runner |
+| Autorización por recurso | La aplicación comprueba la pertenencia ([documento 06](06-autenticacion-y-autorizacion.md), ADR 0005) | `ORDER_NOT_FOUND`, como un pedido inexistente |
+| Auditoría | Categoría de registro `Sandbox.Audit`, con *scope* de ejecución y cliente | No bloquea |
+| Confirmación humana | Pendiente: segundo change de la fase 5 | `CONFIRMATION_REQUIRED` (previsto) |
+| Reglas de negocio | Servicios de dominio (fase 3) | Error de dominio con código estable |
+
+```mermaid
+flowchart TB
+    R[Runner: --scenario / --prompt] -->|longitud| A[SalesAgent: scope RunId + CustomerId]
+    A --> F[FunctionInvokingChatClient]
+    F --> B[RunBudgetChatClient: llamadas y tokens]
+    B --> M[Modelo]
+    F --> I[FunctionInvoker: allow-list, errores seguidos, auditoría]
+    I --> T[Tools]
+    T --> App[Aplicación: pertenencia, idempotencia por ámbito]
+    I -.-> AU[(Sandbox.Audit)]
+    App -.-> AU
+```
+
+### Lo que cubren los límites de la librería y lo que no
+
+`FunctionInvokingChatClient` trae límites propios, pero **no bastan con un diseño en el que las tools devuelven errores en lugar de lanzar excepciones**. Esto se vio en un spike y quedó fijado en tests de aprendizaje (`GuardrailLearningTests`), con `Microsoft.Extensions.AI` 10.11.0:
+
+| Qué se probó | Qué pasó | Consecuencia |
+|---|---|---|
+| `MaximumIterationsPerRequest = N` con un modelo que siempre pide tools | **N+1 llamadas**: al llegar al límite, la librería hace una llamada extra sin tools para forzar una respuesta de texto (observado; la documentación no lo describe) | El límite de llamadas se aplica en un cliente propio, que bloquea justo esa llamada extra |
+| `MaximumConsecutiveErrorsPerRequest = 1` con una tool que devuelve un error sin lanzar | No cuenta: el bucle sigue hasta el límite de iteraciones. La documentación lo confirma: el límite cuenta **excepciones** | Contador propio de `ToolError` en el `FunctionInvoker` |
+| `context.Terminate = true` en el `FunctionInvoker` | Termina tras esa invocación, sin más llamadas; si la respuesta pedía más tools, **tampoco se ejecutan** | Así corta el límite de errores seguidos |
+| El modelo pide una tool que no está en `ChatOptions.Tools` | La librería le responde con su propio texto (`Error: Requested function ... not found.`) y **no pasa por el `FunctionInvoker`** | Sin más, un intento de usar una tool no permitida no quedaría auditado ni respondería con `ToolError` |
+| La misma tool en `AdditionalTools` | No se ofrece al modelo, pero si la pide **sí pasa por el `FunctionInvoker`** (la documentación lo describe) | Base de la allow-list: las no permitidas se bloquean con `BLOCKED_BY_POLICY` y se auditan |
+| Un cliente intermedio lanza una excepción antes de una llamada | Llega al llamador sin envolver | El cliente de presupuesto corta el bucle con una excepción interna que el agente traduce a un motivo de parada |
+
+Otro efecto observado al escribir los tests: si dos respuestas del modelo traen una petición con el **mismo `CallId`**, la librería da la segunda por respondida y termina el bucle. Con un modelo real no debería ocurrir (cada petición trae un identificador nuevo), pero un modelo falso que reutiliza el mismo paso del guion lo provoca.
+
+### Motivo de parada
+
+Cuando un guardrail para la ejecución, el resultado no es una excepción ni una respuesta vacía, sino un **motivo de parada** (`ModelCallLimit`, `ToolErrorLimit`, `TokenBudget`; `Completed` si el modelo terminó por sí mismo) con una respuesta fija del sistema. Lo que el modelo hubiera escrito hasta entonces queda en el registro. Así:
+
+- el usuario recibe una explicación coherente, no un texto a medias del modelo;
+- el resumen conserva lo que sí pasó (llamadas, tools, tokens), útil para depurar;
+- el Runner termina con un código propio, el 4, distinto de un éxito y de un error.
+
+### Auditoría correlacionada
+
+Cada invocación de tool deja un evento `ToolInvoked` con la tool, la **decisión** (`Allowed` o `Blocked`), el resultado y la duración, sin argumentos. Además hay eventos para las tools inventadas, las paradas y los accesos denegados de la aplicación. Todos van a la categoría `Sandbox.Audit` y llevan, por un *scope* de registro, el identificador de la ejecución y el cliente. El *scope* sigue el flujo asíncrono, así que también lo llevan los eventos que emite la aplicación, que no sabe nada del agente.
+
+En un sistema real la auditoría iría a un almacén duradero e inalterable, separado del registro operativo; aquí basta con el registro estructurado, que OpenTelemetry podrá exportar en el tercer change de la fase. En la consola, cada línea de una ejecución lleva delante `=> Ejecución <id> del cliente CUST-001`.
+
+### Observado contra DeepSeek (2026-11-02, `deepseek-flash`)
+
+| Ejecución | Llamadas | Tokens de entrada / salida | Tools | Motivo | Código |
+|---|---|---|---|---|---|
+| `--scenario happy-order` | 3 | 4.526 / 180 | `list_products`, `place_order` | `Completed` | 0 |
+| `--scenario lost-response` | 4 | 6.495 / 311 | `list_products`, `place_order` (`SERVICE_UNAVAILABLE`), `place_order` | `Completed` | 0 |
+| `--scenario read-only` | 2 | 1.884 / 126 | `list_products` | `Completed` | 0 |
+| Petición que pide expresamente `place_order`, con solo `list_products` y `get_stock` permitidas | 1 | 678 / 87 | ninguna | `Completed` | 0 |
+| `--scenario happy-order --Guardrails:TokenBudget=2000` | 2 | 2.755 / 121 | `list_products`, `place_order` | `TokenBudget` | 4 |
+
+Tres lecciones:
+
+- **El modelo no pide lo que no se le ofrece.** En `read-only` explicó que no podía crear el pedido, y ni siquiera insistiendo en el texto llegó a pedir `place_order`. Así que `BLOCKED_BY_POLICY` no se vio con el modelo real: es defensa en profundidad para cuando el modelo conozca la tool por otra vía (memoria, un texto inyectado), y está probada con el modelo falso.
+- **Ofrecer menos tools abarata cada llamada.** Con la misma petición, la primera llamada pasa de 1.232 tokens de entrada (seis tools) a 792 (cuatro), porque los esquemas de las tools viajan en cada llamada.
+- **Un guardrail puede parar después de una escritura.** Con el presupuesto bajo, `place_order` creó el pedido y la parada llegó justo antes de la respuesta. El primer texto fijo ("No he podido completar tu petición…") daba a entender que no se había hecho nada. Ahora avisa de que lo ya hecho se mantiene y remite al resumen, que lista las tools ejecutadas. En un sistema con estado persistente (aquí cada ejecución empieza con el estado en memoria vacío), repetir la petición con una clave nueva crearía un segundo pedido: por eso importa decir la verdad sobre lo ya hecho. Es razonamiento, no algo observado.
 
 ## Errores típicos
 
@@ -109,11 +171,18 @@ Cada guardrail tendrá su requisito en OpenSpec con escenarios y sus tests **sin
 - Confirmación humana genérica ("¿continuar?") en lugar de mostrar la acción exacta.
 - No probar los guardrails con ataques realistas.
 - Registrar en auditoría datos sensibles en claro.
+- Confiar en `MaximumConsecutiveErrorsPerRequest` cuando las tools devuelven errores como datos: solo cuenta excepciones.
+- Quitar una tool de las ofrecidas y creer que con eso está bloqueada: si el modelo la pide, la librería responde por su cuenta y nada lo audita.
+- Comprobar un atajo (repetición idempotente, caché) antes que la autorización, sin que la clave dependa de quién pide: devuelve resultados ajenos (ADR 0005).
+- Contar con que el modelo se callará al llegar a un límite: la librería le pide una respuesta más, y eso también cuesta tokens.
+- Un mensaje de parada que da a entender que no se hizo nada, cuando la parada llegó después de una acción que cambió estado.
+- Probar una opción de configuración en lugar de su efecto: aquí, el test comprobaba `IncludeScopes` y la consola real no mostraba los *scopes*.
 
 ## Referencias
 
 - Riesgos documentados de `IChatClient`: <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.ichatclient>
-- Límites del bucle: <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.functioninvokingchatclient.maximumiterationsperrequest>
+- Límites del bucle: <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.functioninvokingchatclient.maximumiterationsperrequest> y <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.functioninvokingchatclient.maximumconsecutiveerrorsperrequest> (consultados el 2026-11-02)
+- Tools no ofrecidas y desconocidas: <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.functioninvokingchatclient.additionaltools> y <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.functioninvokingchatclient.terminateonunknowncalls> (consultados el 2026-11-02)
 - Middleware en el pipeline: <https://learn.microsoft.com/dotnet/ai/ichatclient#custom-ichatclient-middleware>
 - Mínimo privilegio y aprobaciones: <https://learn.microsoft.com/security/zero-trust/sfi/least-privilege-for-ai-agents>
 - Defensa de IA en identidad y acceso: <https://learn.microsoft.com/security/zero-trust/catalog-ai-defense-capabilities/identity-access-least-privilege>

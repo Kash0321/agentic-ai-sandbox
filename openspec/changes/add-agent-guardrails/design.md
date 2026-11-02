@@ -114,7 +114,7 @@ Alternativa descartada: `TerminateOnUnknownCalls = true`. Pararía la ejecución
 ### D10. Motivo de parada y texto fijo
 
 - `AgentStopReason` tiene los valores `Completed`, `ModelCallLimit`, `ToolErrorLimit` y `TokenBudget`, y `AgentRunResult` lo incorpora.
-- Si para un guardrail, la respuesta final es un texto fijo por motivo (por ejemplo, "No he podido completar tu petición: se ha alcanzado el máximo de pasos permitido."), y todos los textos del modelo van al registro como intermedios.
+- Si para un guardrail, la respuesta final es un texto fijo por motivo (por ejemplo, "No he podido terminar de atender tu petición: he alcanzado el número máximo de pasos permitido. Las operaciones que ya se hubieran hecho se mantienen; revisa el resumen antes de repetir la petición."), y todos los textos del modelo van al registro como intermedios. La segunda frase se añadió en el apply, tras la ejecución real con presupuesto bajo (ver Hallazgos del apply).
 - La parada emite `RunStopped`.
 
 ### D11. Longitud máxima de la petición: constante, no configurable
@@ -135,7 +135,7 @@ Alternativa descartada: `TerminateOnUnknownCalls = true`. Pararía la ejecución
 - [`IncludeScopes` cambia el formato de la consola] -> Solo afecta a la salida de errores, y la salida estándar no cambia de formato salvo la línea nueva. Las trazas citadas en los documentos 02 a 04 son anteriores y quedan como históricas.
 - [**BREAKING** interno: `GetOrderQuery` y `CancelOrderCommand` cambian de forma] -> Solo los construyen las tools y los tests, que se actualizan en el change.
 - [La misma clave en `PlaceOrder` y `ShipOrder` deja de dar conflicto (D3)] -> Ningún escenario lo exigía y `ShipOrder` no lo usa el agente. Si algún test lo comprobaba, se cambia citando D3.
-- [`Terminate` con varias tools en una misma respuesta] -> No se probó en el spike con más de una petición por respuesta. Un test de aprendizaje lo fija en el apply. La spec solo exige no volver a llamar al modelo.
+- [`Terminate` con varias tools en una misma respuesta] -> Resuelto en el apply (ver Open Questions): corta también las pendientes de esa respuesta. La spec solo exige no volver a llamar al modelo, así que es compatible.
 
 ## Migration Plan
 
@@ -143,4 +143,17 @@ No hay datos persistentes ni despliegue: el estado es in-memory y se crea en cad
 
 ## Open Questions
 
-- Comportamiento exacto de `Terminate` cuando la respuesta pide varias tools: ¿se ejecutan las restantes de esa respuesta? Lo responde un test de aprendizaje en el apply y no cambia la spec.
+Ninguna pendiente. Resuelta en el apply:
+
+- **`Terminate` con varias tools en una misma respuesta** (test de aprendizaje `GuardrailLearningTests.Terminate_OnTheFirstOfTwoCallsInOneResponse_…`, 2026-11-02): si el `FunctionInvoker` pone `Terminate` en la primera de dos peticiones de la misma respuesta, la segunda **no se ejecuta** y el modelo no recibe otra llamada. Para D7 significa que, al llegar al límite de errores seguidos, las tools que quedaban en esa respuesta no se ejecutan ni se registran.
+
+`GuardrailLearningTests` fija también E1, E2, E5 y E6, para que una versión nueva de la librería que los cambie falle allí y no en el agente.
+
+### Hallazgos del apply
+
+- **`CallId` repetido** (observado, no documentado): si dos respuestas del modelo traen una petición con el mismo `CallId`, la librería da la segunda por respondida y termina el bucle con el motivo `Completed`. Apareció al reutilizar la misma instancia de un paso del guion en los tests; los tests generan ahora un paso nuevo por respuesta. Con un modelo real no debería ocurrir.
+- **Spec de auditoría precisada**: `agent-guardrails` prohibía "argumentos de tools" en todos los eventos, pero `AccessDenied` debe llevar el identificador del pedido. Se precisó que la prohibición es para los eventos de invocación de tools, sin cambiar el comportamiento previsto.
+- **Parada después de una escritura** (ejecución real contra DeepSeek, 2026-11-02): con `Guardrails:TokenBudget=2000`, el escenario feliz creó el pedido (`place_order` con éxito) y la parada por presupuesto llegó justo antes de la respuesta final. El texto fijo original ("No he podido completar tu petición…") daba a entender que no se había hecho nada. Se cambió para avisar de que lo ya hecho se mantiene y remitir al resumen, que lista las tools ejecutadas. La spec no cambia: sigue diciendo que la petición no se pudo terminar. Mejora posible, fuera de alcance: que el texto nombre las operaciones de escritura ya hechas.
+- **El modelo real no pide tools que no se le ofrecen**: con la allow-list reducida y una petición que le pedía expresamente `place_order`, DeepSeek respondió en una llamada que no tenía esa tool. `BLOCKED_BY_POLICY` queda como defensa en profundidad, probada con el modelo falso.
+- **La consola no mostraba los *scopes***: con `Configure<SimpleConsoleFormatterOptions>` y el nombre del formateador vacío, el proveedor de consola copia sus opciones heredadas sobre las del formateador. El test de configuración pasaba y la consola real no mostraba nada. Se usa `AddSimpleConsole`, que fija el formateador por nombre, y el test comprueba también ese nombre. Además, un `Dictionary` como *scope* se imprimía con su nombre de tipo; se usa `LoggerMessage.DefineScope` con plantilla ("Ejecución {RunId} del cliente {CustomerId}").
+- **Arnés de los tests de aplicación**: como un cliente solo ve sus pedidos, el arnés lee y cancela cada pedido como su propietario, que busca entre los clientes conocidos con unas queries de auditoría nula, para no dejar accesos denegados falsos en la auditoría que comprueban los tests.

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Sandbox.Agents.Tests.Fakes;
 using Sandbox.Agents.Tools;
+using Sandbox.Application.Auditing;
 using Sandbox.Application.FaultInjection;
 using Sandbox.Application.Sales;
 
@@ -31,9 +32,11 @@ internal sealed class ToolHarness : IDisposable
         }
 
         var injector = new FaultInjector(Options.Create(faults), TimeProvider.System, NullLogger<FaultInjector>.Instance);
-        Queries = new SalesQueries(state);
+        var audit = AuditLog.Create(Logs);
+        Queries = new SalesQueries(state, audit);
+        Commands = new SalesCommands(state, TimeProvider.System, audit);
         Tools = new SalesTools(
-            new FaultInjectingSalesCommands(new SalesCommands(state, TimeProvider.System), injector),
+            new FaultInjectingSalesCommands(Commands, injector),
             queries ?? new FaultInjectingSalesQueries(Queries, injector),
             new SalesSession(customerId),
             Logs.CreateLogger<SalesTools>());
@@ -43,6 +46,9 @@ internal sealed class ToolHarness : IDisposable
     public RecordingLoggerProvider Logs { get; } = new();
 
     public SalesQueries Queries { get; }
+
+    /// <summary>Commands sobre el mismo estado, sin inyector: para preparar pedidos de otros clientes.</summary>
+    public SalesCommands Commands { get; }
 
     public SalesTools Tools { get; }
 

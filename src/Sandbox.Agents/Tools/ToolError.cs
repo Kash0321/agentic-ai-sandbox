@@ -22,6 +22,16 @@ public sealed record ToolError(string Code, string Message, bool Retryable)
             "Error interno al ejecutar la herramienta. No repitas la petición; informa al cliente.",
             Retryable: false);
 
+    /// <summary>
+    /// Tool del catálogo que la allow-list no permite en esta ejecución. El mensaje no menciona la configuración: el
+    /// modelo solo necesita saber que no puede usarla.
+    /// </summary>
+    public static ToolError BlockedByPolicy() =>
+        new(
+            ToolErrorCodes.BlockedByPolicy,
+            "Esta acción no está disponible en esta conversación. No la repitas; explica al cliente qué puedes hacer.",
+            Retryable: false);
+
     /// <summary>Argumentos que no se pueden asignar a los parámetros de la tool.</summary>
     public static ToolError InvalidArguments(string toolName) =>
         new(

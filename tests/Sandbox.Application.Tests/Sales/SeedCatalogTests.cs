@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+using Sandbox.Application.Auditing;
 using Sandbox.Application.Sales;
 using Sandbox.Domain.Results;
 using Sandbox.Domain.Sales;
@@ -12,8 +14,8 @@ public sealed class SeedCatalogTests
     [Fact]
     public async Task CreateState_Twice_GivesTheSameCustomersAndProducts()
     {
-        var first = new SalesQueries(SeedCatalog.CreateState());
-        var second = new SalesQueries(SeedCatalog.CreateState());
+        var first = new SalesQueries(SeedCatalog.CreateState(), new AuditLog(NullLogger.Instance));
+        var second = new SalesQueries(SeedCatalog.CreateState(), new AuditLog(NullLogger.Instance));
 
         Assert.Equal(await CustomersOf(first), await CustomersOf(second));
         Assert.Equal(await ProductsOf(first), await ProductsOf(second));
@@ -22,7 +24,7 @@ public sealed class SeedCatalogTests
     [Fact]
     public async Task CreateState_Always_HasABlockedCustomerAndAProductWithoutStock()
     {
-        var queries = new SalesQueries(SeedCatalog.CreateState());
+        var queries = new SalesQueries(SeedCatalog.CreateState(), new AuditLog(NullLogger.Instance));
 
         Assert.Contains(await CustomersOf(queries), customer => customer.Status == CustomerStatus.Blocked);
         Assert.Contains(await ProductsOf(queries), product => product.Available == 0);

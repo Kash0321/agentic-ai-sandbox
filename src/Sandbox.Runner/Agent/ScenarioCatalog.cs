@@ -1,3 +1,4 @@
+using Sandbox.Agents.Tools;
 using Sandbox.Application.FaultInjection;
 
 namespace Sandbox.Runner.Agent;
@@ -8,6 +9,8 @@ public static class ScenarioCatalog
     public const string HappyOrder = "happy-order";
 
     public const string LostResponse = "lost-response";
+
+    public const string ReadOnly = "read-only";
 
     private const string TwoRedMugs = "Hola, quiero pedir dos tazas rojas, por favor.";
 
@@ -28,6 +31,7 @@ public static class ScenarioCatalog
                     Timing = FaultTiming.After,
                 },
             ]),
+        new(ReadOnly, "CUST-001", TwoRedMugs, () => [], SalesToolNames.ReadOnly),
     ];
 
     public static AgentScenario? Find(string? id) =>

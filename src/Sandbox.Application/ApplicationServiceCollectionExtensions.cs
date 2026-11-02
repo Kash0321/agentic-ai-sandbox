@@ -1,6 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Sandbox.Application.Auditing;
 using Sandbox.Application.FaultInjection;
 using Sandbox.Application.Sales;
 
@@ -18,6 +20,7 @@ public static class ApplicationServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton(TimeProvider.System);
+        services.TryAddSingleton(provider => AuditLog.Create(provider.GetRequiredService<ILoggerFactory>()));
         services.AddSingleton(_ => SeedCatalog.CreateState());
         services.AddSingleton<SalesCommands>();
         services.AddSingleton<SalesQueries>();

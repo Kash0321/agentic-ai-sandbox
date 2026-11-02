@@ -10,4 +10,7 @@ public static class ExitCodes
     public const int InvalidConfiguration = 2;
 
     public const int ModelCallFailed = 3;
+
+    /// <summary>Un guardrail paró la ejecución del agente (spec <c>agent-guardrails</c>).</summary>
+    public const int StoppedByGuardrail = 4;
 }

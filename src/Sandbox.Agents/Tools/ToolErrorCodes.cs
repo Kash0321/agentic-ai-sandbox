@@ -6,4 +6,13 @@ public static class ToolErrorCodes
     public const string InternalError = "INTERNAL_ERROR";
 
     public const string InvalidArguments = "INVALID_ARGUMENTS";
+
+    /// <summary>La allow-list impidió ejecutar una tool del catálogo (spec <c>agent-guardrails</c>).</summary>
+    public const string BlockedByPolicy = "BLOCKED_BY_POLICY";
+
+    /// <summary>
+    /// El modelo pidió una tool que no existe. No es un error que reciba el modelo, sino el resultado con que se
+    /// registra esa petición en la ejecución y en la auditoría.
+    /// </summary>
+    public const string UnknownTool = "UNKNOWN_TOOL";
 }

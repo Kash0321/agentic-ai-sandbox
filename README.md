@@ -120,9 +120,17 @@ Tokens: 13 de entrada y 2 de salida
 - Para que el agente atienda una petición, con tools sobre el dominio dummy, añade argumentos tras `--` al comando del paso 4 (`dotnet run --project src/Sandbox.Runner -- --scenario happy-order`):
   - `-- --scenario happy-order` crea un pedido de dos tazas;
   - `-- --scenario lost-response` hace lo mismo con la primera respuesta perdida, para ver el reintento idempotente;
+  - `-- --scenario read-only` hace la misma petición con solo las tools de lectura permitidas: el agente no puede crear el pedido;
   - `-- --prompt "¿Qué productos tenéis?"` envía un texto libre.
 
   Añade `--customer CUST-002` para actuar como otro cliente; por defecto, `CUST-001`. La salida muestra la respuesta final y un resumen con las llamadas al modelo, las tools y los tokens. Cada ejecución hace varias llamadas al modelo: un pedido gasta unos 4.500 tokens de entrada. Detalle en [`docs/learn/12-diseno-de-tools-para-llms.md`](docs/learn/12-diseno-de-tools-para-llms.md).
+- Cada ejecución del agente pasa por **guardrails** configurables en la sección `Guardrails`:
+  - `MaxModelCalls` (10): máximo de llamadas al modelo;
+  - `MaxConsecutiveToolErrors` (3): tools seguidas que pueden fallar;
+  - `TokenBudget` (20.000): tokens de entrada y salida;
+  - `AllowedTools` (todas): tools que se ofrecen al modelo.
+
+  Por ejemplo, `-- --scenario happy-order --Guardrails:TokenBudget=2000` agota el presupuesto y termina con el código 4. Un cliente solo ve y cancela sus propios pedidos, y cada tool deja un evento de auditoría en la categoría `Sandbox.Audit`, con el identificador de la ejecución. Detalle en [`docs/learn/05-guardrails.md`](docs/learn/05-guardrails.md) y [`docs/learn/06-autenticacion-y-autorizacion.md`](docs/learn/06-autenticacion-y-autorizacion.md).
 - El inyector de fallos de los servicios dummy se activa con la sección `FaultInjection` (por ejemplo, `--FaultInjection:Rules:0:Operation=PlaceOrder --FaultInjection:Rules:0:Trigger=Always`). Sin ella no hace nada, y una regla inválida termina con el código 2. Detalle en [`docs/learn/11-dominios-aptos-para-agentes.md`](docs/learn/11-dominios-aptos-para-agentes.md).
 
 Configuración por defecto (`src/Sandbox.Runner/appsettings.json`, sin clave):
@@ -150,6 +158,7 @@ Códigos de salida del Runner:
 | `1` | Error inesperado (el detalle queda en el registro) |
 | `2` | Configuración inválida, por ejemplo, falta la API key |
 | `3` | Fallo al llamar al modelo: autenticación, red o error del proveedor |
+| `4` | Un guardrail paró la ejecución del agente (llamadas, errores seguidos o tokens); la salida muestra el motivo |
 
 Detalle en [`docs/learn/10-configuracion-y-secretos-en-net.md`](docs/learn/10-configuracion-y-secretos-en-net.md).
 
@@ -211,6 +220,8 @@ Este laboratorio sirve también para **aprender** los conceptos que valida. La c
 - [Estructura y estándares de la solución .NET](docs/learn/08-estructura-y-estandares-de-la-solucion-dotnet.md): capas, SDK, paquetes, saltos de línea y globalización invariante.
 - [Integración continua y cadena de suministro](docs/learn/09-integracion-continua-y-cadena-de-suministro.md): CI, checks obligatorios, acciones fijadas por SHA, Dependabot y escaneo de imágenes.
 - [Configuración y secretos en una consola .NET](docs/learn/10-configuracion-y-secretos-en-net.md): host genérico, fuentes de configuración, User Secrets, secretos por fichero, validación al arrancar y códigos de salida.
+- [Diseño de dominios aptos para agentes](docs/learn/11-dominios-aptos-para-agentes.md): máquinas de estado, errores con código estable, idempotencia e inyección de fallos.
+- [Diseño de tools para LLMs](docs/learn/12-diseno-de-tools-para-llms.md): nombres, descripciones, esquemas, errores accionables y la identidad fuera del contrato.
 - [Glosario](docs/learn/glosario.md)
 
 ## Flujo de trabajo con OpenSpec
@@ -275,7 +286,7 @@ agentic-ai-sandbox/
 
 ## Estado
 
-Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) y 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) completadas. Siguiente: **fase 5 · Guardrails**. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) y 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) completadas. En curso: **fase 5 · Guardrails**, en tres changes; el primero (`add-agent-guardrails`) trae la autorización por recurso, los límites de llamadas, errores y tokens, la allow-list y la auditoría. Siguen la confirmación humana y OpenTelemetry. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

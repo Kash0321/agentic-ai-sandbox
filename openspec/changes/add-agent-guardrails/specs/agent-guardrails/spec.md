@@ -109,7 +109,7 @@ El agente MUST NOT llamar al modelo con una petición de más de 2.000 caractere
 - **THEN** la rechaza y el modelo no recibe ninguna llamada
 
 ### Requirement: Auditoría estructurada
-Los eventos de auditoría SHALL registrarse en una categoría de registro propia, distinta de la de los registros operativos, con un identificador de evento estable por tipo. Cada evento SHALL llevar el identificador de la ejecución, distinto en cada una, y el cliente de sesión. Los eventos MUST NOT incluir argumentos de tools, datos de resultados, el texto de la petición ni secretos.
+Los eventos de auditoría SHALL registrarse en una categoría de registro propia, distinta de la de los registros operativos, con un identificador de evento estable por tipo. Cada evento SHALL llevar el identificador de la ejecución, distinto en cada una, y el cliente de sesión. Los eventos de invocación de tools MUST NOT incluir sus argumentos ni los datos de sus resultados, y ningún evento MUST incluir el texto de la petición ni secretos.
 
 #### Scenario: Correlación de una ejecución
 - **GIVEN** una ejecución en la que el modelo invoca `list_products` y `get_order` de un pedido de otro cliente

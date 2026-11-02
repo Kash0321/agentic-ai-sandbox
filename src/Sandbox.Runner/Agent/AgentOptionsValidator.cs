@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using Sandbox.Agents.Agent;
 
 namespace Sandbox.Runner.Agent;
 
@@ -25,6 +26,11 @@ public sealed class AgentOptionsValidator : IValidateOptions<AgentOptions>
         if (options.Prompt is not null && string.IsNullOrWhiteSpace(options.Prompt))
         {
             failures.Add($"{Path(nameof(AgentOptions.Prompt))} no puede estar vacío.");
+        }
+
+        if (options.Prompt is { Length: > SalesAgent.MaxRequestLength })
+        {
+            failures.Add($"{Path(nameof(AgentOptions.Prompt))} admite como máximo {SalesAgent.MaxRequestLength} caracteres.");
         }
 
         if (options.CustomerId is not null && string.IsNullOrWhiteSpace(options.CustomerId))

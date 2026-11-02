@@ -66,13 +66,13 @@ internal sealed class FaultHarness
             cancellationToken ?? Token);
 
     public Task<Result<OrderView>> CancelAsync(string key, string orderId) =>
-        Commands.CancelOrderAsync(new CancelOrderCommand(key, orderId), Token);
+        Commands.CancelOrderAsync(new CancelOrderCommand(key, orderId, "CUST-001"), Token);
 
     public Task<Result<OrderView>> ShipAsync(string key, string orderId) =>
         Commands.ShipOrderAsync(new ShipOrderCommand(key, orderId), Token);
 
     public Task<Result<OrderView>> GetOrderAsync(string orderId) =>
-        Queries.GetOrderAsync(new GetOrderQuery(orderId), Token);
+        Queries.GetOrderAsync(new GetOrderQuery(orderId, "CUST-001"), Token);
 
     public Task<Result<CustomerView>> GetCustomerAsync(string customerId) =>
         Queries.GetCustomerAsync(new GetCustomerQuery(customerId), Token);
