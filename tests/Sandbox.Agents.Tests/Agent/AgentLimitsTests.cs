@@ -17,6 +17,8 @@ public sealed class AgentLimitsTests
 {
     private static readonly object MissingOrder = new { orderId = "ORD-9999" };
 
+    private static readonly object TwoMugs = new { lines = new[] { new { sku = "SKU-MUG-RED", quantity = 2 } }, idempotencyKey = "k1" };
+
     [Fact]
     public async Task RunAsync_ModelThatKeepsAskingForTools_StopsAtMaxModelCallsWithoutAnotherCall()
     {
@@ -101,6 +103,22 @@ public sealed class AgentLimitsTests
         Assert.Equal(3, harness.Model.Requests.Count);
         Assert.Equal(
             Enumerable.Repeat(new ToolInvocation("get_order", ErrorCodes.OrderNotFound), 3),
+            result.ToolInvocations);
+        Assert.Equal(AgentStopReason.ToolErrorLimit, result.StopReason);
+    }
+
+    [Fact]
+    public async Task RunAsync_ThreeBlockedToolsInARow_CountAsErrorsAndStopTheRun()
+    {
+        using var harness = new AgentHarness(
+            new ScriptedChatClient([.. Steps(5, () => ScriptStep.ToolCalls((SalesToolNames.PlaceOrder, TwoMugs)))]),
+            guardrails: new GuardrailOptions { AllowedTools = [.. SalesToolNames.ReadOnly] });
+
+        var result = await harness.RunAsync();
+
+        Assert.Equal(3, harness.Model.Requests.Count);
+        Assert.Equal(
+            Enumerable.Repeat(new ToolInvocation("place_order", ToolErrorCodes.BlockedByPolicy), 3),
             result.ToolInvocations);
         Assert.Equal(AgentStopReason.ToolErrorLimit, result.StopReason);
     }

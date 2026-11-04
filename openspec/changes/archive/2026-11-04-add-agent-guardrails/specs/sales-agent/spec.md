@@ -23,7 +23,7 @@ Cada ejecución SHALL producir:
 - la respuesta final: el texto del último mensaje del modelo o, si la paró un guardrail, el texto fijo del sistema;
 - el motivo de parada de `agent-guardrails`;
 - el número de llamadas al modelo;
-- la lista de tools pedidas, en orden y con su resultado (éxito, código de error, `BLOCKED_BY_POLICY` o `UNKNOWN_TOOL`);
+- la lista de tools pedidas, en orden y con su resultado (éxito o código de error);
 - el total de tokens de entrada y de salida.
 
 Los textos que el modelo emita junto a sus peticiones de tools MUST NOT formar parte de la respuesta final; SHALL quedar en el registro.
@@ -44,12 +44,12 @@ Los textos que el modelo emita junto a sus peticiones de tools MUST NOT formar p
 - **THEN** el resultado indica 3 llamadas al modelo, 300 tokens de entrada y las tres invocaciones de `get_order` con `ORDER_NOT_FOUND`
 
 ### Requirement: Escenarios con nombre
-El agente SHALL ofrecer estos escenarios reproducibles, cada uno con su cliente de sesión, su petición y, si procede, sus fallos inducidos y sus tools permitidas:
+El agente SHALL ofrecer estos escenarios reproducibles, cada uno con su cliente de sesión, su petición y, si procede, sus fallos inducidos:
 - `happy-order`: el cliente `CUST-001` pide dos tazas rojas, sin fallos inducidos;
 - `lost-response`: la misma petición, con la primera creación de pedido fallando después de ejecutarse (respuesta perdida);
-- `read-only`: la misma petición, con solo las tools de lectura permitidas.
+- `read-only`: la misma petición, solo con tools de lectura.
 
-Los fallos inducidos de un escenario SHALL sumarse a los configurados, no sustituirlos. Las tools permitidas de un escenario SHALL reducir las configuradas, nunca ampliarlas.
+Los fallos inducidos de un escenario SHALL sumarse a los configurados, no sustituirlos.
 
 #### Scenario: Escenario feliz
 - **GIVEN** el escenario `happy-order` y un modelo falso que pide `list_products`, después `place_order` con 2 unidades de `SKU-MUG-RED` y luego responde

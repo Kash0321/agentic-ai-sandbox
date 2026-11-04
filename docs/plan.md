@@ -57,7 +57,7 @@ El explore de la fase repartió el alcance en tres changes, para que cada PR sea
 
 | Change | Contenido | Estado |
 |--------|-----------|--------|
-| `add-agent-guardrails` | Autorización por recurso en la aplicación (un pedido ajeno da `ORDER_NOT_FOUND`) y claves de idempotencia por ámbito (ADR 0005); límites de llamadas al modelo, de errores de tool seguidos y de tokens; allow-list de tools con `BLOCKED_BY_POLICY` y tools desconocidas como `UNKNOWN_TOOL`; motivo de parada y código de salida 4; longitud máxima de la petición; auditoría en `Sandbox.Audit` correlacionada por ejecución; escenario `read-only` | En curso |
+| `add-agent-guardrails` | Autorización por recurso en la aplicación (un pedido ajeno da `ORDER_NOT_FOUND`) y claves de idempotencia por ámbito (ADR 0005); límites de llamadas al modelo, de errores de tool seguidos y de tokens; allow-list de tools con `BLOCKED_BY_POLICY` y tools desconocidas como `UNKNOWN_TOOL`; motivo de parada y código de salida 4; longitud máxima de la petición; auditoría en `Sandbox.Audit` correlacionada por ejecución; escenario `read-only` | Implementado, verificado en local, en contenedor y contra DeepSeek, y archivado en la rama del change |
 | Confirmación humana | `cancel_order` con confirmación ligada a la acción exacta (`CONFIRMATION_REQUIRED`, `ApprovalRequiredAIFunction`) | Pendiente de explore |
 | Observabilidad | OpenTelemetry y Aspire Dashboard como perfil opcional de compose | Pendiente de explore |
 

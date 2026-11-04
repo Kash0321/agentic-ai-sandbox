@@ -60,6 +60,7 @@ public sealed class SalesAgentTests
         Assert.Contains("Voy a buscar el producto", harness.LoggedText, StringComparison.Ordinal);
         Assert.Equal(2, result.ModelCalls);
         Assert.Equal([new ToolInvocation("list_products", "OK")], result.ToolInvocations);
+        Assert.Equal(AgentStopReason.Completed, result.StopReason);
     }
 
     [Fact]

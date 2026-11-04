@@ -72,12 +72,12 @@ Propiedades relevantes para guardrails (valores por defecto documentados):
 
 | Propiedad | Por defecto | Uso en el proyecto |
 |-----------|-------------|--------------------|
-| `MaximumIterationsPerRequest` | 40 | Tope del bucle: se fijará mucho más bajo |
-| `MaximumConsecutiveErrorsPerRequest` | 3 | Corta tras fallos seguidos de tools |
+| `MaximumIterationsPerRequest` | 40 | Tope del bucle. Desde la fase 5 se fija igual que `Guardrails:MaxModelCalls` (10); al llegar al límite la librería hace una llamada extra sin tools, que bloquea un cliente propio ([documento 05](05-guardrails.md)) |
+| `MaximumConsecutiveErrorsPerRequest` | 3 | Corta tras fallos seguidos de tools, pero **solo cuenta excepciones**: no sirve cuando las tools devuelven errores como dato, como aquí. El límite de errores seguidos es propio (documento 05) |
 | `IncludeDetailedErrors` | `false` | Se mantiene en `false`: no filtrar detalle interno al modelo |
 | `AllowConcurrentInvocation` | `false` | Ejecución en serie, más predecible |
 
-`FunctionInvocationContext` expone la función, los argumentos y el número de iteración, útil para filtros de autorización y auditoría **(a confirmar en la fase 5 cómo enganchar un filtro por invocación)**.
+`FunctionInvocationContext` expone la función, los argumentos y el número de iteración, útil para filtros de autorización y auditoría. **Confirmado en la fase 5**: el gancho es la propiedad `FunctionInvoker`, que recibe cada invocación (también las de `AdditionalTools`, que no se ofrecen al modelo) y puede cortar el bucle con `context.Terminate` ([documento 05](05-guardrails.md)).
 
 ## 4. `Microsoft.Extensions.AI.OpenAI`
 
