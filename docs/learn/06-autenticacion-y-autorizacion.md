@@ -107,7 +107,7 @@ Sin Entra ni sistemas reales, el proyecto reproduce los **conceptos** con piezas
 | Token con alcance | Credencial simulada con scopes y caducidad corta |
 | Decisión de política | Allow-list de tools en el borde de invocación: las no permitidas no se ofrecen al modelo y, si las pide, devuelven `BLOCKED_BY_POLICY` (fase 5) |
 | Autorización por recurso | La aplicación comprueba la pertenencia del pedido; uno ajeno da `ORDER_NOT_FOUND`, igual que uno inexistente (fase 5, ADR 0005) |
-| Elevación y aprobación | Guardrail `CONFIRMATION_REQUIRED` ligado a tool y argumentos |
+| Elevación y aprobación | `cancel_order` envuelta en `ApprovalRequiredAIFunction`: el agente pregunta a un aprobador (consola o guion) con la tool y los argumentos exactos; si se deniega, no se ejecuta (`CONFIRMATION_DENIED`) (fase 5, [documento 05](05-guardrails.md)) |
 | Auditoría | Eventos en la categoría `Sandbox.Audit`, correlacionados por ejecución y cliente con un *scope* de registro (fase 5) |
 | Datos sensibles | Seudonimización en las salidas de las tools |
 
@@ -144,8 +144,8 @@ OWASP recomienda además identificadores aleatorios en lugar de secuenciales. Aq
 1. El usuario A pide al agente el pedido del usuario B: la aplicación responde `ORDER_NOT_FOUND` aunque el modelo insista, y la auditoría registra el acceso denegado.
 2. Un contenido malicioso en un campo de texto pide "actuar como administrador": no cambia permisos.
 3. El modelo intenta pasar un `userId` ajeno: la tool no lo admite como parámetro.
-4. Acción destructiva sin confirmación: bloqueada con `CONFIRMATION_REQUIRED`.
-5. Cambio de argumentos tras la aprobación: la aprobación se invalida.
+4. Acción destructiva sin confirmación: no se ejecuta; queda como `CONFIRMATION_DENIED` (ya cubierto por tests en la fase 5).
+5. Cambio de argumentos tras la aprobación: no puede ocurrir por construcción, porque se ejecuta la petición que contiene la aprobación y el modelo nunca ve los contenidos de aprobación (fijado con un test de aprendizaje en la fase 5).
 6. Auditoría: cada acción, permitida o denegada, deja rastro y no incluye datos sensibles en claro.
 7. El usuario B repite una cancelación del usuario A con la misma clave de idempotencia: no recibe el resultado guardado (ya cubierto por tests de aplicación en la fase 5).
 

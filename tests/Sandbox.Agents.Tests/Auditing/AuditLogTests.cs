@@ -61,6 +61,24 @@ public sealed class AuditLogTests
     }
 
     [Fact]
+    public void ApprovalDecided_AnyDecision_WritesAuditEventWithToolOutcomeApproverAndReason()
+    {
+        var (logs, audit) = Create();
+
+        audit.ApprovalDecided("cancel_order", ApprovalOutcome.Denied, "Console", "sin consola interactiva");
+
+        var entry = AssertAuditEvent(logs, 5005, "ApprovalDecided");
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Equal("cancel_order", entry.Properties["Tool"]);
+        Assert.Equal(ApprovalOutcome.Denied, entry.Properties["Outcome"]);
+        Assert.Equal("Console", entry.Properties["Approver"]);
+        Assert.Equal("sin consola interactiva", entry.Properties["Reason"]);
+        Assert.Equal(
+            ["Approver", "Outcome", "Reason", "Tool", "{OriginalFormat}"],
+            entry.Properties.Keys.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
     public void TrimToolName_LongerThanLimit_KeepsTheFirst64Characters()
     {
         var name = new string('x', 200);

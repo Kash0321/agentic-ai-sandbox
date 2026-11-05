@@ -165,7 +165,7 @@ Framework previo de orquestación de Microsoft. Existe una guía oficial de migr
 | Adaptador OpenAI | `Microsoft.Extensions.AI.OpenAI` | DeepSeek vía endpoint compatible | Sí (fase 2) | [AsIChatClient](https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.openaiclientextensions.asichatclient) |
 | Reductores de chat | `MessageCountingChatReducer`... | Limitar historial | Opcional | [IChatClient](https://learn.microsoft.com/dotnet/ai/ichatclient#chat-reduction-experimental) |
 | Agentes y workflows | Microsoft Agent Framework | Orquestación de alto nivel | No (comparación futura) | [Overview](https://learn.microsoft.com/agent-framework/overview/) |
-| Aprobación humana | `ApprovalRequiredAIFunction` | Confirmar tools sensibles | Se emulará con un guardrail propio | [Tool approval](https://learn.microsoft.com/agent-framework/agents/tools/tool-approval) |
+| Aprobación humana | `ApprovalRequiredAIFunction` | Confirmar tools sensibles | Desde la fase 5, `cancel_order` con pausa y reanudación en `SalesAgent` ([documento 05](05-guardrails.md)); está en `Microsoft.Extensions.AI`, sin Agent Framework | [Tool approval](https://learn.microsoft.com/agent-framework/agents/tools/tool-approval) |
 | Migración | Guía SK a Agent Framework | Entender código antiguo | No | [Guía](https://learn.microsoft.com/agent-framework/migration-guide/from-semantic-kernel/) |
 | Protocolo MCP | `ModelContextProtocol` | Integración estándar | No (backlog) | [MCP en .NET](https://learn.microsoft.com/dotnet/ai/get-started-mcp) |
 | Identidad de agentes | Microsoft Entra Agent ID | AuthN/AuthZ de agentes | Simulado | [Entra Agent ID](https://learn.microsoft.com/entra/agent-id/what-are-agent-identities) |

@@ -121,6 +121,7 @@ Tokens: 13 de entrada y 2 de salida
   - `-- --scenario happy-order` crea un pedido de dos tazas;
   - `-- --scenario lost-response` hace lo mismo con la primera respuesta perdida, para ver el reintento idempotente;
   - `-- --scenario read-only` hace la misma petición con solo las tools de lectura permitidas: el agente no puede crear el pedido;
+  - `-- --scenario cancel-order` parte de un pedido `ORD-0001` ya creado y pide cancelarlo. Cancelar es irreversible, así que el Runner muestra la acción exacta y pregunta `[s/N]` en la consola antes de ejecutarla; sin consola interactiva (por ejemplo, con la entrada redirigida), la deniega;
   - `-- --prompt "¿Qué productos tenéis?"` envía un texto libre.
 
   Añade `--customer CUST-002` para actuar como otro cliente; por defecto, `CUST-001`. La salida muestra la respuesta final y un resumen con las llamadas al modelo, las tools y los tokens. Cada ejecución hace varias llamadas al modelo: un pedido gasta unos 4.500 tokens de entrada. Detalle en [`docs/learn/12-diseno-de-tools-para-llms.md`](docs/learn/12-diseno-de-tools-para-llms.md).
@@ -286,7 +287,7 @@ agentic-ai-sandbox/
 
 ## Estado
 
-Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) y 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) completadas. En curso: **fase 5 · Guardrails**, en tres changes; el primero (`add-agent-guardrails`) trae la autorización por recurso, los límites de llamadas, errores y tokens, la allow-list y la auditoría. Siguen la confirmación humana y OpenTelemetry. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) y 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) completadas. En curso: **fase 5 · Guardrails**, en tres changes; el primero (`add-agent-guardrails`) trae la autorización por recurso, los límites de llamadas, errores y tokens, la allow-list y la auditoría, y el segundo (`add-tool-approval`), la confirmación humana de las acciones irreversibles. Sigue OpenTelemetry. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

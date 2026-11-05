@@ -25,6 +25,8 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **Guardrail** | Control determinista (o complementario probabilístico) que limita entradas, decisiones o acciones de un sistema de IA |
 | **Alucinación** | Salida plausible pero falsa o inventada, incluidos argumentos de tools |
 | **HITL (human-in-the-loop)** | Un humano aprueba o decide en puntos concretos del proceso |
+| **Aprobación fuera de banda** | Aprobación que llega por un canal distinto de la conversación y más tarde (una notificación, una interfaz web); obliga a pausar el agente y reanudarlo |
+| **Pausa y reanudación** | Patrón en el que el bucle devuelve una petición pendiente (por ejemplo, de aprobación) y se reanuda con la respuesta y el historial acumulado |
 | **IChatClient** | Abstracción de `Microsoft.Extensions.AI` para conversar con un modelo |
 | **Idempotencia** | Repetir una operación produce el mismo efecto que hacerla una vez |
 | **Ámbito de idempotencia** | Espacio en el que una clave de idempotencia es única (aquí, el cliente o el almacén). Si es global, la repetición de otro usuario puede devolver un resultado ajeno y saltarse la autorización |

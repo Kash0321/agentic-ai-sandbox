@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Sandbox.Agents.Approval;
 using Sandbox.Agents.Chat;
 using Sandbox.Agents.Guardrails;
 using Sandbox.Agents.Tools;
@@ -15,17 +16,26 @@ namespace Sandbox.Agents.Agent;
 /// pide hasta que responde con texto o un guardrail lo para. El bucle es el <see cref="FunctionInvokingChatClient"/> de
 /// Microsoft.Extensions.AI; su <c>FunctionInvoker</c> es el borde exterior de las tools (design D3 de
 /// <c>add-sales-agent</c>) y aplica la allow-list y el límite de errores seguidos (D7 y D8 de
-/// <c>add-agent-guardrails</c>). Las llamadas y los tokens los limita <see cref="RunBudgetChatClient"/> (D6).
+/// <c>add-agent-guardrails</c>). Las llamadas y los tokens los limita <see cref="RunBudgetChatClient"/> (D6). Las tools
+/// irreversibles se ofrecen envueltas en <see cref="ApprovalRequiredAIFunction"/>: el bucle se pausa, se pregunta al
+/// <see cref="IToolApprover"/> y se reanuda (design D1 a D4 de <c>add-tool-approval</c>).
 /// </summary>
 public sealed partial class SalesAgent(
     IChatClient chatClient,
     SalesTools tools,
     SalesSession session,
+    IToolApprover approver,
     IOptions<GuardrailOptions> guardrailOptions,
     IOptions<DeepSeekOptions> deepSeekOptions,
     AuditLog audit,
     ILogger<SalesAgent> logger)
 {
+    /// <summary>Motivo que queda en la auditoría cuando quien decide no da ninguno (por ejemplo, al aprobar).</summary>
+    public const string NoReason = "sin motivo";
+
+    /// <summary>Motivo que recibe el modelo cuando una persona deniega una acción (design D3).</summary>
+    public const string DeniedReason = "El cliente no ha confirmado esta acción; no la repitas y explícale que no se ha hecho.";
+
     /// <summary>Longitud máxima de una petición, en caracteres (design D11). No es configurable.</summary>
     public const int MaxRequestLength = 2000;
 
@@ -76,23 +86,29 @@ public sealed partial class SalesAgent(
             new(ChatRole.System, SystemPrompt.Text),
             new(ChatRole.User, request),
         ];
-        var options = new ChatOptions { Tools = [.. functions.Where(function => run.IsAllowed(function.Name))] };
+        var options = new ChatOptions
+        {
+            // Solo lo permitido se envuelve para pedir confirmación: lo que la allow-list bloquea no llega a preguntarse
+            // a nadie (design D4).
+            Tools = [.. functions.Where(function => run.IsAllowed(function.Name)).Select(RequireConfirmationWhenIrreversible)],
+        };
 
-        ChatResponse? response = null;
+        // Mensajes de todas las vueltas: de ellos salen los textos intermedios y el orden de las tools.
+        List<ChatMessage> produced = [];
         try
         {
-            response = await loop.GetResponseAsync(messages, options, cancellationToken).ConfigureAwait(false);
+            await RunUntilDoneAsync(loop, messages, options, produced, run, cancellationToken).ConfigureAwait(false);
         }
         catch (GuardrailStopException stop)
         {
             run.Stop(stop.Reason);
         }
 
-        var assistantTexts = (response?.Messages ?? [])
+        var assistantTexts = produced
             .Where(message => message.Role == ChatRole.Assistant && !string.IsNullOrWhiteSpace(message.Text))
             .Select(message => message.Text)
             .ToList();
-        var invocations = response is null ? run.Invocations : InvocationsInRequestOrder(response, run);
+        var invocations = InvocationsInRequestOrder(produced, run);
 
         string finalAnswer;
         if (run.StopReason is AgentStopReason.Completed)
@@ -118,6 +134,88 @@ public sealed partial class SalesAgent(
             budget.InputTokens,
             budget.OutputTokens,
             run.StopReason);
+    }
+
+    private static AIFunction RequireConfirmationWhenIrreversible(AIFunction function) =>
+        SalesToolNames.RequiresConfirmation.Contains(function.Name, StringComparer.Ordinal)
+            ? new ApprovalRequiredAIFunction(function)
+            : function;
+
+    /// <summary>
+    /// Bucle de pausa y reanudación (design D2): llama al bucle de tools y, mientras vuelva con peticiones de
+    /// aprobación, las decide y lo reanuda con el historial acumulado. Un guardrail puede pararlo en cualquier vuelta.
+    /// </summary>
+    private async Task RunUntilDoneAsync(
+        FunctionInvokingChatClient loop,
+        List<ChatMessage> messages,
+        ChatOptions options,
+        List<ChatMessage> produced,
+        RunState run,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var response = await loop.GetResponseAsync(messages, options, cancellationToken).ConfigureAwait(false);
+            produced.AddRange(response.Messages);
+
+            var requests = response.Messages
+                .SelectMany(message => message.Contents)
+                .OfType<ToolApprovalRequestContent>()
+                .ToList();
+            if (run.StopReason is not AgentStopReason.Completed || requests.Count == 0)
+            {
+                return;
+            }
+
+            List<AIContent> replies = [];
+            foreach (var approvalRequest in requests)
+            {
+                replies.Add(await DecideAsync(approvalRequest, run, cancellationToken).ConfigureAwait(false));
+                if (run.StopReason is not AgentStopReason.Completed)
+                {
+                    // Denegaciones seguidas hasta el límite: se para sin reanudar ni volver a llamar al modelo.
+                    return;
+                }
+            }
+
+            messages.AddRange(response.Messages);
+            messages.Add(new ChatMessage(ChatRole.User, replies));
+        }
+    }
+
+    /// <summary>
+    /// Decide una petición de aprobación (design D3). Las tools que no requieren confirmación llegan aquí por el "todo o
+    /// nada" de la librería y se aprueban en código: el FunctionInvoker les aplicará la allow-list como a cualquier otra.
+    /// </summary>
+    private async Task<ToolApprovalResponseContent> DecideAsync(
+        ToolApprovalRequestContent approvalRequest,
+        RunState run,
+        CancellationToken cancellationToken)
+    {
+        if (approvalRequest.ToolCall is not FunctionCallContent call
+            || !SalesToolNames.RequiresConfirmation.Contains(call.Name, StringComparer.Ordinal)
+            || !run.IsAllowed(call.Name))
+        {
+            return approvalRequest.CreateResponse(approved: true);
+        }
+
+        // Copia de los argumentos: el aprobador ve exactamente lo que se ejecutará y no puede cambiarlo.
+        var arguments = new Dictionary<string, object?>(call.Arguments ?? new Dictionary<string, object?>(), StringComparer.Ordinal);
+        var decision = await approver.DecideAsync(new ToolApprovalRequest(call.Name, arguments), cancellationToken).ConfigureAwait(false);
+        audit.ApprovalDecided(
+            call.Name,
+            decision.Approved ? ApprovalOutcome.Approved : ApprovalOutcome.Denied,
+            decision.Approver,
+            decision.Reason ?? NoReason);
+
+        if (decision.Approved)
+        {
+            return approvalRequest.CreateResponse(approved: true);
+        }
+
+        run.Record(call.CallId, new ToolInvocation(call.Name, ToolErrorCodes.ConfirmationDenied));
+        run.CountOutcome(ToolErrorCodes.ConfirmationDenied);
+        return approvalRequest.CreateResponse(approved: false, DeniedReason);
     }
 
     private async ValueTask<object?> InvokeToolAsync(
@@ -165,15 +263,29 @@ public sealed partial class SalesAgent(
     }
 
     /// <summary>
-    /// Tools en el orden en que las pidió el modelo (design D9). Las que no pasaron por el <c>FunctionInvoker</c> y no
-    /// existen en el catálogo son nombres inventados: se registran como <c>UNKNOWN_TOOL</c>. Las del catálogo que no
-    /// llegaron a ejecutarse porque un guardrail cortó la respuesta no se listan.
+    /// Tools en el orden en que las pidió el modelo, en todas las vueltas (design D9 de <c>add-agent-guardrails</c> y
+    /// D2 de <c>add-tool-approval</c>). Una petición cuenta donde aparece por primera vez, como petición de tool o de
+    /// aprobación. Las que no pasaron por el agente y no existen en el catálogo son nombres inventados
+    /// (<c>UNKNOWN_TOOL</c>); las del catálogo que un guardrail dejó sin ejecutar no se listan. Al final van las
+    /// invocaciones de una vuelta cuyos mensajes se perdieron porque el presupuesto la cortó.
     /// </summary>
-    private List<ToolInvocation> InvocationsInRequestOrder(ChatResponse response, RunState run)
+    private List<ToolInvocation> InvocationsInRequestOrder(List<ChatMessage> produced, RunState run)
     {
         List<ToolInvocation> ordered = [];
-        foreach (var call in response.Messages.SelectMany(message => message.Contents).OfType<FunctionCallContent>())
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        foreach (var content in produced.SelectMany(message => message.Contents))
         {
+            var call = content switch
+            {
+                FunctionCallContent functionCall => functionCall,
+                ToolApprovalRequestContent { ToolCall: FunctionCallContent requested } => requested,
+                _ => null,
+            };
+            if (call is null || !seen.Add(call.CallId))
+            {
+                continue;
+            }
+
             if (run.Find(call.CallId) is { } invocation)
             {
                 ordered.Add(invocation);
@@ -186,6 +298,7 @@ public sealed partial class SalesAgent(
             }
         }
 
+        ordered.AddRange(run.Recorded.Where(entry => !seen.Contains(entry.CallId)).Select(entry => entry.Invocation));
         return ordered;
     }
 
@@ -212,19 +325,20 @@ public sealed partial class SalesAgent(
     private sealed class RunState(GuardrailOptions limits)
     {
         private readonly HashSet<string> _allowed = new(limits.EffectiveAllowedTools, StringComparer.Ordinal);
-        private readonly List<ToolInvocation> _invocations = [];
+        private readonly List<(string CallId, ToolInvocation Invocation)> _recorded = [];
         private readonly Dictionary<string, ToolInvocation> _byCallId = new(StringComparer.Ordinal);
         private int _consecutiveErrors;
 
         public AgentStopReason StopReason { get; private set; } = AgentStopReason.Completed;
 
-        public IReadOnlyList<ToolInvocation> Invocations => _invocations;
+        /// <summary>Invocaciones y denegaciones en el orden en que ocurrieron, con su <c>CallId</c>.</summary>
+        public IReadOnlyList<(string CallId, ToolInvocation Invocation)> Recorded => _recorded;
 
         public bool IsAllowed(string toolName) => _allowed.Contains(toolName);
 
         public void Record(string callId, ToolInvocation invocation)
         {
-            _invocations.Add(invocation);
+            _recorded.Add((callId, invocation));
             _byCallId[callId] = invocation;
         }
 

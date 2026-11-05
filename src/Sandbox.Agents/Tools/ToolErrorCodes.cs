@@ -15,4 +15,10 @@ public static class ToolErrorCodes
     /// registra esa petición en la ejecución y en la auditoría.
     /// </summary>
     public const string UnknownTool = "UNKNOWN_TOOL";
+
+    /// <summary>
+    /// Una persona denegó una acción que requiere confirmación (spec <c>tool-approval</c>). Es el resultado con que se
+    /// registra esa petición; el modelo recibe el aviso de la librería con el motivo.
+    /// </summary>
+    public const string ConfirmationDenied = "CONFIRMATION_DENIED";
 }

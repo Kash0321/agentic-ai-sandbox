@@ -37,7 +37,7 @@ Una ejecución MUST NOT llamar al modelo más de `MaxModelCalls` veces. Si al al
 - **THEN** la respuesta final es ese texto y el motivo de parada es `Completed`
 
 ### Requirement: Límite de errores de tool seguidos
-Cuando `MaxConsecutiveToolErrors` invocaciones de tools seguidas terminan con un error, de cualquier código e incluido `BLOCKED_BY_POLICY`, la ejecución SHALL terminar tras la última de ellas, sin volver a llamar al modelo, con el motivo de parada `ToolErrorLimit`. Una invocación con éxito SHALL reiniciar la cuenta.
+Cuando `MaxConsecutiveToolErrors` invocaciones de tools seguidas terminan con un error, de cualquier código e incluidos `BLOCKED_BY_POLICY` y `CONFIRMATION_DENIED`, la ejecución SHALL terminar tras la última de ellas, sin volver a llamar al modelo, con el motivo de parada `ToolErrorLimit`. Una invocación con éxito SHALL reiniciar la cuenta.
 
 #### Scenario: Tres errores seguidos
 - **GIVEN** `MaxConsecutiveToolErrors` igual a 3 y un modelo que pide `get_order` de `ORD-9999` en cada respuesta
@@ -48,6 +48,11 @@ Cuando `MaxConsecutiveToolErrors` invocaciones de tools seguidas terminan con un
 - **GIVEN** `MaxConsecutiveToolErrors` igual a 3 y un modelo que pide, en respuestas sucesivas, `get_order` de `ORD-9999` dos veces, `list_products`, `get_order` de `ORD-9999` dos veces y después responde con texto
 - **WHEN** el agente atiende la petición
 - **THEN** el motivo de parada es `Completed`
+
+#### Scenario: Confirmaciones denegadas seguidas
+- **GIVEN** `MaxConsecutiveToolErrors` igual a 3, un aprobador que siempre deniega y un modelo que pide `cancel_order` de un pedido del cliente de sesión en cada respuesta
+- **WHEN** el agente atiende la petición
+- **THEN** se pregunta 3 veces al aprobador, el pedido no cambia y el motivo de parada es `ToolErrorLimit`
 
 ### Requirement: Presupuesto de tokens
 Antes de cada llamada al modelo, si la suma de los tokens de entrada y de salida de las llamadas anteriores de la ejecución alcanza `TokenBudget`, la llamada MUST NOT hacerse y la ejecución SHALL terminar con el motivo de parada `TokenBudget`. Una llamada ya iniciada no se interrumpe, así que el total puede superar el presupuesto en lo que consuma la última.

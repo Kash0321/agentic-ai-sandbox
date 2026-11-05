@@ -211,6 +211,7 @@ public sealed class AgentLimitsTests
             model,
             tools.Tools,
             new SalesSession("CUST-001"),
+            ScriptedToolApprover.None(),
             Options.Create(new GuardrailOptions()),
             Options.Create(new DeepSeekOptions { ApiKey = "sk-test" }),
             AuditLog.Create(tools.Logs),

@@ -59,4 +59,15 @@ public sealed partial class AuditLog(ILogger logger)
         Level = LogLevel.Warning,
         Message = "Acceso denegado en {Operation} al pedido {OrderId} para el cliente {CustomerId}: {Reason}")]
     public partial void AccessDenied(string operation, string orderId, string customerId, string reason);
+
+    /// <summary>
+    /// Decisión humana sobre una acción que requiere confirmación (spec <c>tool-approval</c>). Sin los argumentos: la
+    /// acción exacta la vio quien decidió, pero la auditoría no guarda los datos de la operación.
+    /// </summary>
+    [LoggerMessage(
+        EventId = 5005,
+        EventName = "ApprovalDecided",
+        Level = LogLevel.Information,
+        Message = "Confirmación de {Tool}: {Outcome} por {Approver}. Motivo: {Reason}")]
+    public partial void ApprovalDecided(string tool, ApprovalOutcome outcome, string approver, string? reason);
 }

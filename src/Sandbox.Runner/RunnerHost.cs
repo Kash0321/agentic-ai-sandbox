@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using Sandbox.Agents.Agent;
+using Sandbox.Agents.Approval;
 using Sandbox.Agents.Chat;
 using Sandbox.Agents.Guardrails;
 using Sandbox.Agents.Tools;
@@ -114,6 +115,7 @@ public static partial class RunnerHost
         services.AddSingleton(provider => new SalesSession(
             ResolveCustomerId(provider.GetRequiredService<IOptions<AgentOptions>>().Value)));
         services.AddSingleton<SalesTools>();
+        services.AddSingleton<IToolApprover>(_ => ConsoleToolApprover.ForProcessConsole());
         services.AddSingleton<SalesAgent>();
         services.AddSingleton<AgentRunner>();
     }

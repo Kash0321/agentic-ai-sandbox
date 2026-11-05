@@ -1,6 +1,6 @@
 # 5. Guardrails: en qué consisten y qué patrones existen
 
-> **Estado**: documento base, ampliado en la fase 5 con los guardrails implementados (change `add-agent-guardrails`). **Verificado**: 2026-10-31 para lo que atañe a Microsoft Learn, y 2026-11-02 para las propiedades de `FunctionInvokingChatClient` citadas abajo; lo observado en el spike y en los tests de aprendizaje se marca como tal. Las referencias externas se marcan. La clasificación en capas es **síntesis propia** pensada para este proyecto, no un estándar.
+> **Estado**: documento base, ampliado en la fase 5 con los guardrails implementados (changes `add-agent-guardrails` y `add-tool-approval`). **Verificado**: 2026-10-31 para lo que atañe a Microsoft Learn, 2026-11-02 para las propiedades de `FunctionInvokingChatClient` citadas abajo y 2026-11-05 para la aprobación de tools; lo observado en el spike y en los tests de aprendizaje se marca como tal. Las referencias externas se marcan. La clasificación en capas es **síntesis propia** pensada para este proyecto, no un estándar.
 
 ## Qué son
 
@@ -102,7 +102,7 @@ El primer change de la fase 5 (`add-agent-guardrails`) implementa los guardrails
 | Longitud de la petición (2.000 caracteres) | Comprobación antes de llamar al modelo | Código de salida 2 en el Runner |
 | Autorización por recurso | La aplicación comprueba la pertenencia ([documento 06](06-autenticacion-y-autorizacion.md), ADR 0005) | `ORDER_NOT_FOUND`, como un pedido inexistente |
 | Auditoría | Categoría de registro `Sandbox.Audit`, con *scope* de ejecución y cliente | No bloquea |
-| Confirmación humana | Pendiente: segundo change de la fase 5 | `CONFIRMATION_REQUIRED` (previsto) |
+| Confirmación humana de `cancel_order` | `ApprovalRequiredAIFunction`: el bucle se pausa, se pregunta a un aprobador (consola o guion) y se reanuda | Si se deniega, no se ejecuta; el resultado registra `CONFIRMATION_DENIED` |
 | Reglas de negocio | Servicios de dominio (fase 3) | Error de dominio con código estable |
 
 ```mermaid
@@ -147,6 +147,61 @@ Cada invocación de tool deja un evento `ToolInvoked` con la tool, la **decisió
 
 En un sistema real la auditoría iría a un almacén duradero e inalterable, separado del registro operativo; aquí basta con el registro estructurado, que OpenTelemetry podrá exportar en el tercer change de la fase. En la consola, cada línea de una ejecución lleva delante `=> Ejecución <id> del cliente CUST-001`.
 
+### Confirmación humana: pausa y reanudación
+
+`cancel_order` es la única acción irreversible del agente (`Cancelled` es un estado final), así que no se ejecuta sin que una persona la apruebe. El mecanismo es el estándar de `Microsoft.Extensions.AI`: la tool se ofrece envuelta en `ApprovalRequiredAIFunction` y el bucle **no la invoca**, sino que devuelve el control al llamador con la petición exacta. La documentación lo describe así y añade que `ApprovalRequiredAIFunction` solo marca la tool: quien hace cumplir la aprobación es el bucle.
+
+```mermaid
+sequenceDiagram
+    participant M as Modelo
+    participant L as FunctionInvokingChatClient
+    participant A as SalesAgent
+    participant H as Aprobador (persona)
+    M->>L: pide cancel_order(ORD-0001)
+    L-->>A: ToolApprovalRequestContent (no invoca)
+    A->>H: cancel_order con {"orderId":"ORD-0001",...} [s/N]
+    H-->>A: sí o no
+    A->>L: historial + ToolApprovalResponseContent
+    alt aprobada
+        L->>L: invoca por el FunctionInvoker (allow-list, errores, auditoría)
+    else denegada
+        L->>M: "rejected ... must not be retried" + motivo
+    end
+    L->>M: siguiente llamada con el resultado
+```
+
+Es el patrón de **pausa y reanudación**, el mismo que necesita una aplicación web o de chat, donde la aprobación llega por otro canal y más tarde. Aquí el aprobador contesta en el momento: es una consola. Lo observado en un spike y fijado en tests de aprendizaje (`ToolApprovalLearningTests`, 10.11.0):
+
+| Qué se probó | Qué pasó |
+|---|---|
+| El modelo pide la tool marcada | El bucle vuelve tras 1 llamada con un `ToolApprovalRequestContent` que envuelve la petición exacta |
+| Se reanuda aprobando | La invocación **pasa por el `FunctionInvoker`**: siguen aplicándose la allow-list, los errores seguidos y la auditoría. El modelo ve un historial normal, sin los contenidos de aprobación |
+| Se reanuda denegando | **No pasa por el `FunctionInvoker`**. El modelo recibe un texto de la librería (`Tool call invocation was rejected by the approver and must not be retried.`) con nuestro motivo. Por eso la denegación se registra y se audita en el paso de aprobación (observado, no documentado) |
+| Dos peticiones en la misma respuesta, una marcada | **Todo o nada**: las dos piden aprobación (documentado). Las que no requieren confirmación se aprueban en código, sin preguntar a la persona |
+| Se ejecuta lo aprobado | Los argumentos de la invocación son los de la petición aprobada |
+| Compilar sin silenciar avisos experimentales | Sin avisos: estos tipos no son experimentales en la 10.11.0 |
+
+Decisiones del proyecto (detalle en el `design.md` de `add-tool-approval`):
+
+- **Qué tools**: solo `cancel_order`, fijado en código. Una acción irreversible no debería poder quedarse sin confirmación por un ajuste.
+- **Allow-list primero**: si la tool no está permitida, no se envuelve, y se bloquea con `BLOCKED_BY_POLICY` sin preguntar a nadie.
+- **Qué ve la persona**: la tool y sus argumentos **en JSON**, por la salida de errores. Los argumentos los escribe el modelo; en JSON, un carácter de control como `ESC` (U+001B), que en una terminal puede iniciar una secuencia que cambie lo que se ve, aparece escapado como `\u001B`.
+- ***Fail closed* sin consola**: si la entrada no es interactiva (CI, stdin redirigido), se deniega sin esperar.
+- **La denegación cuenta como error seguido**, para que un modelo que insiste no obligue a preguntar una y otra vez.
+- **Una denegación no es un fallo**: la ejecución termina con `Completed` y el código 0. Decidió la persona.
+
+Observado contra DeepSeek (2026-11-05, `deepseek-flash`, escenario `cancel-order`):
+
+| Ejecución | Qué hizo el modelo | Decisión | Llamadas | Tokens de entrada |
+|---|---|---|---|---|
+| Primera descripción de `cancel_order` ("el sistema pide confirmación…") | Consultó el pedido y **preguntó por texto** "¿Confirmas que quieres cancelarlo?", sin pedir `cancel_order` | Ninguna: el pedido quedó sin cancelar | 2 | 2.728 |
+| Descripción nueva, sin consola interactiva (2 veces) | Llamó a `cancel_order` | Denegada: "sin consola interactiva"; el modelo no reintentó | 2 | 2.695 |
+| Descripción nueva, persona en la consola, `s` | Llamó a `cancel_order` | Aprobada: pedido cancelado | 2 | 2.841 |
+| Igual, Intro | Llamó a `cancel_order` | Denegada: el modelo no reintentó y explicó que no se hizo nada | 2 | 2.696 |
+| Igual, en `docker compose run` | Llamó a `cancel_order` | Aprobada: compose abre una consola interactiva por defecto | 2 | 2.795 |
+
+La lección más útil es la primera fila: **el modelo tiende a pedir confirmación por su cuenta**, y en una ejecución de un solo turno eso deja la acción sin hacer. La descripción de la tool tuvo que decirle de forma explícita que la llame directamente porque el sistema ya pide la confirmación. El texto de una tool cambia el comportamiento del modelo tanto como el diseño del bucle.
+
 ### Observado contra DeepSeek (2026-11-02, `deepseek-flash`)
 
 | Ejecución | Llamadas | Tokens de entrada / salida | Tools | Motivo | Código |
@@ -169,6 +224,9 @@ Tres lecciones:
 - Un único guardrail (por ejemplo, solo un detector de inyección) como defensa.
 - Guardrails que lanzan excepciones en lugar de devolver un resultado que el agente pueda interpretar.
 - Confirmación humana genérica ("¿continuar?") en lugar de mostrar la acción exacta.
+- Pedir la confirmación por texto al modelo ("pregunta al cliente antes de cancelar"): el modelo puede saltárselo, y en una ejecución de un solo turno no hay respuesta posible.
+- Mostrar a la persona los argumentos del modelo tal cual en una terminal: un carácter de control puede alterar lo que ve.
+- Aprobar con una pregunta que nadie puede contestar (sin consola) y tomar el silencio como un sí.
 - No probar los guardrails con ataques realistas.
 - Registrar en auditoría datos sensibles en claro.
 - Confiar en `MaximumConsecutiveErrorsPerRequest` cuando las tools devuelven errores como datos: solo cuenta excepciones.
@@ -179,6 +237,8 @@ Tres lecciones:
 - Probar una opción de configuración en lugar de su efecto: aquí, el test comprobaba `IncludeScopes` y la consola real no mostraba los *scopes*.
 
 ## Referencias
+
+- Aprobación de tools en el bucle: <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.functioninvokingchatclient> (observaciones sobre `ApprovalRequiredAIFunction`) y <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.approvalrequiredaifunction> (consultados el 2026-11-05)
 
 - Riesgos documentados de `IChatClient`: <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.ichatclient>
 - Límites del bucle: <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.functioninvokingchatclient.maximumiterationsperrequest> y <https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.functioninvokingchatclient.maximumconsecutiveerrorsperrequest> (consultados el 2026-11-02)
