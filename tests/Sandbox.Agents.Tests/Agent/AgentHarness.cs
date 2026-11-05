@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sandbox.Agents.Agent;
+using Sandbox.Agents.Approval;
 using Sandbox.Agents.Chat;
 using Sandbox.Agents.Guardrails;
 using Sandbox.Agents.Tests.Fakes;
@@ -21,14 +22,17 @@ internal sealed class AgentHarness : IDisposable
         bool thinking = false,
         ISalesQueries? queries = null,
         GuardrailOptions? guardrails = null,
-        string customerId = SessionCustomerId)
+        string customerId = SessionCustomerId,
+        IToolApprover? approver = null)
     {
         Model = model;
+        Approver = approver ?? ScriptedToolApprover.None();
         Tools = new ToolHarness(customerId, queries);
         Agent = new SalesAgent(
             model,
             Tools.Tools,
             new SalesSession(customerId),
+            Approver,
             Options.Create(guardrails ?? new GuardrailOptions()),
             Options.Create(new DeepSeekOptions { ApiKey = "sk-test", Thinking = thinking }),
             AuditLog.Create(Tools.Logs),
@@ -36,6 +40,9 @@ internal sealed class AgentHarness : IDisposable
     }
 
     public ScriptedChatClient Model { get; }
+
+    /// <summary>Aprobador de la ejecución; por defecto, uno que falla si se le pregunta.</summary>
+    public IToolApprover Approver { get; }
 
     public ToolHarness Tools { get; }
 

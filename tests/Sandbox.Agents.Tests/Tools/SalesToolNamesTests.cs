@@ -19,6 +19,13 @@ public sealed class SalesToolNamesTests
     }
 
     [Fact]
+    public void RequiresConfirmation_Always_IsOnlyCancelOrderFromTheCatalog()
+    {
+        Assert.Equal(["cancel_order"], SalesToolNames.RequiresConfirmation);
+        Assert.All(SalesToolNames.RequiresConfirmation, name => Assert.Contains(name, SalesToolNames.All));
+    }
+
+    [Fact]
     public void BlockedByPolicy_Always_IsNotRetryableAndDoesNotMentionTheConfiguration()
     {
         var error = ToolError.BlockedByPolicy();

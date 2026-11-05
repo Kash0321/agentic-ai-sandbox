@@ -74,7 +74,10 @@ public sealed partial class SalesTools(
                     [.. (lines ?? []).Select(line => new OrderLineRequest(line.Sku, line.Quantity))]),
                 cancellationToken));
 
-    [Description("Cancela un pedido en curso del cliente con el que hablas y libera su stock.")]
+    [Description(
+        "Cancela un pedido en curso del cliente con el que hablas y libera su stock. Si el cliente pide cancelar, llama a " +
+        "esta herramienta directamente: no le pidas confirmación por texto, porque el sistema se la pide antes de " +
+        "ejecutarla. Si no la confirma, no repitas la petición.")]
     public Task<ToolResult<OrderView>> CancelOrderAsync(
         [Description("Identificador del pedido, con el formato ORD-0001.")] string orderId,
         [Description(IdempotencyKeyDescription)] string idempotencyKey,
