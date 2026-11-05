@@ -204,6 +204,7 @@ El **código de salida** es el número que un proceso devuelve al terminar. Por 
 | `1` | Error inesperado | Cualquier excepción no prevista: mensaje genérico y el detalle solo en el registro |
 | `2` | Configuración inválida | Sin clave, o con la clave solo en User Secrets y el entorno `Production`; desde la fase 3, también una regla del inyector de fallos inválida |
 | `3` | Fallo al llamar al modelo | Clave rechazada (HTTP 401), límite de peticiones, error del proveedor o de red |
+| `4` | Un guardrail paró la ejecución del agente (desde la fase 5) | `--Guardrails:TokenBudget=2000` con el escenario feliz: el presupuesto se agota antes de la respuesta final ([documento 05](05-guardrails.md)) |
 
 ```
 RunnerHost.RunAsync
@@ -211,15 +212,17 @@ RunnerHost.RunAsync
         |                  \----- AggregateException de ellas -> 2 (varias secciones inválidas)
         |
         v
-  GreetingRunner.RunAsync ------- ChatProviderException ------> 3 "Fallo al llamar al modelo: ..."
+  GreetingRunner o AgentRunner -- ChatProviderException ------> 3 "Fallo al llamar al modelo: ..."
         |                  \----- otra excepción -------------> 1 "Error inesperado" (detalle en el registro)
         v
-  resultado en stdout --------------------------------------------> 0
+  resultado en stdout
+        |--- agente parado por un guardrail ----------------------> 4 "La ejecución se detuvo por un guardrail: ..."
+        \--- en otro caso ----------------------------------------> 0
 ```
 
 Por qué no basta con 0 y 1: la CI usa el código 2 como prueba de que la imagen arranca, lee la configuración y falla de forma controlada sin clave ([documento 09](09-integracion-continua-y-cadena-de-suministro.md)). Si devolviera 1 en ese caso, la CI no podría distinguirlo de un fallo real.
 
-Los valores 2 y 3 son criterio propio. No hay un estándar de códigos para .NET: en Unix, `sysexits.h` propone códigos a partir de 64 (por ejemplo, `78` para un error de configuración), pero pocos programas lo siguen **(no verificado en una fuente primaria)**. Mantenerlos bajos y documentados en la spec es suficiente para este proyecto.
+Los valores 2, 3 y 4 son criterio propio. El 4 distingue una parada controlada por un guardrail de un éxito (el modelo terminó) y de un fallo: la ejecución acabó bien, pero no hizo todo lo pedido. No hay un estándar de códigos para .NET: en Unix, `sysexits.h` propone códigos a partir de 64 (por ejemplo, `78` para un error de configuración), pero pocos programas lo siguen **(no verificado en una fuente primaria)**. Mantenerlos bajos y documentados en la spec es suficiente para este proyecto.
 
 ## Cómo se aplica en este proyecto
 

@@ -30,7 +30,7 @@ public sealed class FaultInjectorTests
             (await plain.Queries.GetCustomerAsync(new("CUST-003"), token)).Value,
             (await Immediate(injected.GetCustomerAsync("CUST-003"))).Value);
         Assert.Equal(
-            (await plain.Queries.GetOrderAsync(new("ORD-0001"), token)).Value?.Status,
+            (await plain.Queries.GetOrderAsync(new("ORD-0001", "CUST-001"), token)).Value?.Status,
             (await Immediate(injected.GetOrderAsync("ORD-0001"))).Value?.Status);
         Assert.Equal(
             (await plain.CancelAsync("k2", "ORD-0001")).Value?.Status,

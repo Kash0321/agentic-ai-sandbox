@@ -3,10 +3,12 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Sandbox.Agents.Chat;
 using Sandbox.Agents.Tests.Fakes;
 using Sandbox.Agents.Tools;
+using Sandbox.Application.Auditing;
 using Sandbox.Application.FaultInjection;
 using Sandbox.Application.Sales;
 using Sandbox.Domain.Sales;
@@ -43,13 +45,14 @@ public sealed class RunnerAgentTests : IDisposable
         Assert.Equal(ExitCodes.Success, exitCode);
         var output = _output.ToString();
         Assert.Contains("Respuesta: Pedido ORD-0001 creado", output, StringComparison.Ordinal);
+        Assert.Contains("Motivo de parada: Completed", output, StringComparison.Ordinal);
         Assert.Contains("Llamadas al modelo: 3", output, StringComparison.Ordinal);
         Assert.Contains("Tools: list_products (OK), place_order (OK)", output, StringComparison.Ordinal);
         Assert.Contains("Tokens: 300 de entrada y 30 de salida", output, StringComparison.Ordinal);
-        var order = await new SalesQueries(_state).GetOrderAsync(new GetOrderQuery("ORD-0001"), TestContext.Current.CancellationToken);
+        var order = await new SalesQueries(_state, new AuditLog(NullLogger.Instance)).GetOrderAsync(new GetOrderQuery("ORD-0001", "CUST-001"), TestContext.Current.CancellationToken);
         Assert.Equal(OrderStatus.Placed, order.Value?.Status);
         Assert.Equal("CUST-001", order.Value?.CustomerId);
-        Assert.Equal(18, (await new SalesQueries(_state).GetStockAsync(new GetStockQuery("SKU-MUG-RED"), TestContext.Current.CancellationToken)).Value?.Available);
+        Assert.Equal(18, (await new SalesQueries(_state, new AuditLog(NullLogger.Instance)).GetStockAsync(new GetStockQuery("SKU-MUG-RED"), TestContext.Current.CancellationToken)).Value?.Available);
         Assert.Equal("Hola, quiero pedir dos tazas rojas, por favor.", model.Requests[0][1].Text);
     }
 
@@ -71,9 +74,9 @@ public sealed class RunnerAgentTests : IDisposable
             StringComparison.Ordinal);
         var lost = Assert.IsType<JsonElement>(Assert.Single(ResultsSentIn(model.Requests[2])).Result);
         Assert.True(lost.GetProperty("error").GetProperty("retryable").GetBoolean());
-        var queries = new SalesQueries(_state);
-        Assert.True((await queries.GetOrderAsync(new GetOrderQuery("ORD-0001"), TestContext.Current.CancellationToken)).IsSuccess);
-        Assert.False((await queries.GetOrderAsync(new GetOrderQuery("ORD-0002"), TestContext.Current.CancellationToken)).IsSuccess);
+        var queries = new SalesQueries(_state, new AuditLog(NullLogger.Instance));
+        Assert.True((await queries.GetOrderAsync(new GetOrderQuery("ORD-0001", "CUST-001"), TestContext.Current.CancellationToken)).IsSuccess);
+        Assert.False((await queries.GetOrderAsync(new GetOrderQuery("ORD-0002", "CUST-001"), TestContext.Current.CancellationToken)).IsSuccess);
     }
 
     [Fact]

@@ -55,7 +55,7 @@ public sealed partial class SalesTools(
     public Task<ToolResult<OrderView>> GetOrderAsync(
         [Description("Identificador del pedido, con el formato ORD-0001.")] string orderId,
         CancellationToken cancellationToken) =>
-        RunAsync(SalesToolNames.GetOrder, () => queries.GetOrderAsync(new GetOrderQuery(orderId), cancellationToken));
+        RunAsync(SalesToolNames.GetOrder, () => queries.GetOrderAsync(new GetOrderQuery(orderId, session.CustomerId), cancellationToken));
 
     [Description(
         "Crea un pedido para el cliente con el que hablas y reserva su stock. Devuelve el pedido creado, o un error " +
@@ -81,7 +81,7 @@ public sealed partial class SalesTools(
         CancellationToken cancellationToken) =>
         RunAsync(
             SalesToolNames.CancelOrder,
-            () => commands.CancelOrderAsync(new CancelOrderCommand(idempotencyKey, orderId), cancellationToken));
+            () => commands.CancelOrderAsync(new CancelOrderCommand(idempotencyKey, orderId, session.CustomerId), cancellationToken));
 
     private static AIFunction Create(Delegate method, string name) =>
         AIFunctionFactory.Create(

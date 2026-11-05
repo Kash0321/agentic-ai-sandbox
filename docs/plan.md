@@ -51,6 +51,16 @@ Criterio de salida: tests de dominio y de aplicación con todas las reglas, cada
 
 Criterio de salida cumplido: el escenario feliz crea un pedido de extremo a extremo con DeepSeek (3 llamadas, unos 4.500 tokens de entrada) y con el modelo falso. El escenario de la respuesta perdida reintenta con la misma clave y crea un solo pedido. Los guardrails y la autorización por recurso son de la fase 5.
 
+## Fase 5: tres changes
+
+El explore de la fase repartió el alcance en tres changes, para que cada PR sea revisable: los guardrails deterministas del bucle, la confirmación humana (que necesita su propio explore, porque el Runner es *one-shot*) y la observabilidad, que añade paquetes y toca compose.
+
+| Change | Contenido | Estado |
+|--------|-----------|--------|
+| `add-agent-guardrails` | Autorización por recurso en la aplicación (un pedido ajeno da `ORDER_NOT_FOUND`) y claves de idempotencia por ámbito (ADR 0005); límites de llamadas al modelo, de errores de tool seguidos y de tokens; allow-list de tools con `BLOCKED_BY_POLICY` y tools desconocidas como `UNKNOWN_TOOL`; motivo de parada y código de salida 4; longitud máxima de la petición; auditoría en `Sandbox.Audit` correlacionada por ejecución; escenario `read-only` | Implementado, verificado en local, en contenedor y contra DeepSeek, y archivado en la rama del change |
+| Confirmación humana | `cancel_order` con confirmación ligada a la acción exacta (`CONFIRMATION_REQUIRED`, `ApprovalRequiredAIFunction`) | Pendiente de explore |
+| Observabilidad | OpenTelemetry y Aspire Dashboard como perfil opcional de compose | Pendiente de explore |
+
 ## Contenedores
 
 Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. Decisiones:

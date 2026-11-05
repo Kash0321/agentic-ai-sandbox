@@ -78,7 +78,7 @@ public sealed class SalesToolsTests
         var retry = await harness.InvokeAsync(SalesToolNames.PlaceOrder, new { lines = TwoMugs, idempotencyKey = "k1" });
 
         Assert.Equal("ORD-0001", retry.GetProperty("data").GetProperty("orderId").GetString());
-        Assert.False((await harness.Queries.GetOrderAsync(new GetOrderQuery("ORD-0002"), TestContext.Current.CancellationToken)).IsSuccess);
+        Assert.False((await harness.Queries.GetOrderAsync(new GetOrderQuery("ORD-0002", "CUST-001"), TestContext.Current.CancellationToken)).IsSuccess);
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public sealed class SalesToolsTests
         await harness.InvokeAsync(SalesToolNames.PlaceOrder, new { lines = TwoMugs, idempotencyKey = "k0" });
 
         var lost = await harness.InvokeAsync(SalesToolNames.CancelOrder, new { orderId = "ORD-0001", idempotencyKey = "k1" });
-        var cancelledMeanwhile = await harness.Queries.GetOrderAsync(new GetOrderQuery("ORD-0001"), TestContext.Current.CancellationToken);
+        var cancelledMeanwhile = await harness.Queries.GetOrderAsync(new GetOrderQuery("ORD-0001", "CUST-001"), TestContext.Current.CancellationToken);
         var retry = await harness.InvokeAsync(SalesToolNames.CancelOrder, new { orderId = "ORD-0001", idempotencyKey = "k1" });
 
         Assert.Equal(ErrorCodes.ServiceUnavailable, ErrorCode(lost));

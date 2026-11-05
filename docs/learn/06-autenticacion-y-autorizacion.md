@@ -1,6 +1,6 @@
 # 6. Autenticación y autorización de agentes con datos sensibles
 
-> **Estado**: documento base. **Verificado**: 2026-10-31 contra Microsoft Learn (Entra Agent ID, flujo *On-Behalf-Of*, mínimo privilegio). Los principios generales de diseño son **síntesis propia**; los estándares externos se marcan como no verificados.
+> **Estado**: documento base, actualizado en la fase 5 con la autorización por recurso implementada (ADR 0005). **Verificado**: 2026-10-31 contra Microsoft Learn (Entra Agent ID, flujo *On-Behalf-Of*, mínimo privilegio), y 2026-11-02 contra OWASP API Security (API1:2023) y la documentación de la API de GitHub. Los principios generales de diseño son **síntesis propia**; los estándares externos no consultados se marcan como no verificados.
 
 ## El problema
 
@@ -45,7 +45,7 @@ flowchart LR
     M[LLM propone tool + args] --> P[Guardrail de tool<br/>PDP: política]
     H --> P
     P -->|permitido| D[Dominio<br/>revalida permisos y reglas]
-    P -->|denegado| E[ToolError: FORBIDDEN]
+    P -->|denegado| E[ToolError: BLOCKED_BY_POLICY]
     D --> R[(Recurso)]
     P -.-> A[(Auditoría)]
     D -.-> A
@@ -54,7 +54,7 @@ flowchart LR
 Dos puntos de decisión independientes, a propósito:
 
 1. **Guardrail de tool** (*policy decision point*): ¿esta tool está permitida para este contexto? ¿requiere confirmación o elevación?
-2. **Dominio**: ¿este usuario puede ver o modificar **este recurso concreto**? Es la barrera definitiva, aunque todo lo anterior falle.
+2. **Dominio**: ¿este usuario puede ver o modificar **este recurso concreto**? Es la barrera definitiva, aunque todo lo anterior falle. En este proyecto la denegación por recurso no usa un código propio: se responde como si el recurso no existiera (ver más abajo).
 
 ## Piezas de una solución segura
 
@@ -103,22 +103,51 @@ Sin Entra ni sistemas reales, el proyecto reproduce los **conceptos** con piezas
 
 | Concepto real | Simulación |
 |---------------|-----------|
-| Sesión autenticada | Un contexto de llamada (`usuario`, `roles`, `scopes`, `inquilino`) inyectado por el host con DI en ámbito, **nunca** como parámetro de tool |
+| Sesión autenticada | Un cliente de sesión (`SalesSession`) que fija el Runner, **nunca** un parámetro de tool (ADR 0004). Roles, *scopes* e inquilino no se simulan por ahora |
 | Token con alcance | Credencial simulada con scopes y caducidad corta |
-| Decisión de política | Servicio de políticas determinista invocado por el guardrail de tool |
-| Autorización por recurso | El dominio comprueba pertenencia y permisos; error `FORBIDDEN` o `NOT_FOUND` |
+| Decisión de política | Allow-list de tools en el borde de invocación: las no permitidas no se ofrecen al modelo y, si las pide, devuelven `BLOCKED_BY_POLICY` (fase 5) |
+| Autorización por recurso | La aplicación comprueba la pertenencia del pedido; uno ajeno da `ORDER_NOT_FOUND`, igual que uno inexistente (fase 5, ADR 0005) |
 | Elevación y aprobación | Guardrail `CONFIRMATION_REQUIRED` ligado a tool y argumentos |
-| Auditoría | Registro estructurado con correlación |
+| Auditoría | Eventos en la categoría `Sandbox.Audit`, correlacionados por ejecución y cliente con un *scope* de registro (fase 5) |
 | Datos sensibles | Seudonimización en las salidas de las tools |
+
+### Autorización por recurso en la práctica (fase 5)
+
+El change `add-agent-guardrails` cerró la limitación que dejó la fase 4: `get_order` y `cancel_order` aceptaban cualquier número de pedido. Es el fallo número uno de la lista de OWASP para APIs, **Broken Object Level Authorization** (API1:2023): cambiar el identificador de un objeto para llegar a datos de otro usuario. Con números secuenciales (`ORD-0001`, `ORD-0002`…), adivinarlos es trivial.
+
+Tres decisiones (detalle en el [ADR 0005](../adr/0005-autorizacion-por-recurso-en-la-aplicacion.md)):
+
+1. **La pertenencia la comprueba la aplicación**, no la tool ni un guardrail del bucle. Así protege a cualquier llamador y la comprobación ocurre en la misma sección crítica que la cancelación.
+2. **Un pedido ajeno se responde como inexistente** (`ORDER_NOT_FOUND`, con el mismo mensaje), en lugar de `FORBIDDEN`. Un `FORBIDDEN` confirmaría que el pedido existe, y el modelo podría contárselo al usuario. GitHub hace lo mismo en su API: responde `404` en lugar de `403` para no confirmar la existencia de repositorios privados. El motivo real no se pierde: queda en un evento de auditoría `AccessDenied`.
+3. **Las claves de idempotencia van por ámbito** (el cliente, o el almacén en los envíos).
+
+La tercera salió de una trampa que encontró el explore y que merece recordarse, porque es general: **un atajo que devuelve un resultado guardado puede saltarse la autorización**.
+
+```mermaid
+sequenceDiagram
+    participant A as Cliente A
+    participant B as Cliente B
+    participant App as Aplicación
+    A->>App: CancelOrder(ORD-0001, clave k1)
+    App->>App: comprueba pertenencia, cancela, guarda k1 -> vista
+    B->>App: CancelOrder(ORD-0001, clave k1)
+    Note over App: Con claves globales: k1 ya existe,<br/>devuelve la vista guardada de A<br/>sin llegar a comprobar la pertenencia
+    Note over App: Con claves por cliente: k1 es nueva para B,<br/>se ejecuta y la comprobación responde ORDER_NOT_FOUND
+```
+
+La repetición idempotente se comprueba antes de ejecutar, y es correcto que así sea: es lo que evita repetir efectos. Pero entonces la clave tiene que pertenecer al mismo ámbito que la autorización. Lo mismo vale para cualquier caché de respuestas.
+
+OWASP recomienda además identificadores aleatorios en lugar de secuenciales. Aquí no se cambian, porque con la comprobación en la aplicación adivinar un número ya no da acceso a nada. Son una defensa adicional, no un sustituto.
 
 **Escenarios de prueba previstos** (fase 6):
 
-1. El usuario A pide al agente el pedido del usuario B: el dominio responde `FORBIDDEN` aunque el modelo insista.
+1. El usuario A pide al agente el pedido del usuario B: la aplicación responde `ORDER_NOT_FOUND` aunque el modelo insista, y la auditoría registra el acceso denegado.
 2. Un contenido malicioso en un campo de texto pide "actuar como administrador": no cambia permisos.
 3. El modelo intenta pasar un `userId` ajeno: la tool no lo admite como parámetro.
 4. Acción destructiva sin confirmación: bloqueada con `CONFIRMATION_REQUIRED`.
 5. Cambio de argumentos tras la aprobación: la aprobación se invalida.
 6. Auditoría: cada acción, permitida o denegada, deja rastro y no incluye datos sensibles en claro.
+7. El usuario B repite una cancelación del usuario A con la misma clave de idempotencia: no recibe el resultado guardado (ya cubierto por tests de aplicación en la fase 5).
 
 ## Lista de comprobación para un sistema real
 
@@ -142,4 +171,6 @@ Sin Entra ni sistemas reales, el proyecto reproduce los **conceptos** con piezas
 - Patrones de acceso y controles para agentes (delegado, identidades administradas): <https://learn.microsoft.com/startups/build/identity-management/access-patterns-controls>
 - Identidad, acceso y mínimo privilegio en defensa de IA: <https://learn.microsoft.com/security/zero-trust/catalog-ai-defense-capabilities/identity-access-least-privilege>
 - Flujo On-Behalf-Of: <https://learn.microsoft.com/entra/identity-platform/v2-oauth2-on-behalf-of-flow>
-- OWASP, OAuth 2.0 Token Exchange, OAuth 2.1, OPA, Cedar: **no verificados**.
+- OWASP API Security Top 10 2023, API1:2023 Broken Object Level Authorization: <https://api-security.owasp.org/editions/2023/en/0xa1-broken-object-level-authorization> (consultado el 2026-11-02).
+- GitHub REST API, respuesta `404` en lugar de `403`: <https://docs.github.com/en/rest/using-the-rest-api/troubleshooting-the-rest-api> (consultado el 2026-11-02).
+- OAuth 2.0 Token Exchange, OAuth 2.1, OPA, Cedar: **no verificados**.

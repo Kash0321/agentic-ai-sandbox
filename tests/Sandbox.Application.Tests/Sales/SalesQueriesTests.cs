@@ -33,7 +33,7 @@ public sealed class SalesQueriesTests
     {
         var harness = new SalesHarness();
 
-        var result = await harness.Queries.GetOrderAsync(new GetOrderQuery("ORD-9999"), Token);
+        var result = await harness.Queries.GetOrderAsync(new GetOrderQuery("ORD-9999", ActiveCustomerId), Token);
 
         Assert.Equal(ErrorKind.NotFound, ResultAssert.Fails(result, ErrorCodes.OrderNotFound).Kind);
     }
@@ -76,10 +76,10 @@ public sealed class SalesQueriesTests
 
         for (var i = 0; i < 3; i++)
         {
-            await harness.Queries.GetOrderAsync(new GetOrderQuery(placed.OrderId), Token);
+            await harness.Queries.GetOrderAsync(new GetOrderQuery(placed.OrderId, ActiveCustomerId), Token);
             await harness.Queries.GetCustomerAsync(new GetCustomerQuery(ActiveCustomerId), Token);
             await harness.Queries.GetStockAsync(new GetStockQuery("SKU-A"), Token);
-            await harness.Queries.GetOrderAsync(new GetOrderQuery("ORD-9999"), Token);
+            await harness.Queries.GetOrderAsync(new GetOrderQuery("ORD-9999", ActiveCustomerId), Token);
         }
 
         Assert.Equal(17, await harness.AvailableAsync("SKU-A"));

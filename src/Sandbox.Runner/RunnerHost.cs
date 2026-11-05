@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Console;
 using Microsoft.Extensions.Options;
 using Sandbox.Agents.Agent;
 using Sandbox.Agents.Chat;
+using Sandbox.Agents.Guardrails;
 using Sandbox.Agents.Tools;
 using Sandbox.Application;
 using Sandbox.Application.FaultInjection;
@@ -43,6 +44,10 @@ public static partial class RunnerHost
         // La salida estándar queda solo para el resultado; todos los registros van a la de errores.
         builder.Services.Configure<ConsoleLoggerOptions>(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
         builder.Services.Configure<ConsoleLifetimeOptions>(options => options.SuppressStatusMessages = true);
+        // Cada línea registrada durante una ejecución del agente muestra su identificador de ejecución y su cliente
+        // (scope de auditoría, design D4 de add-agent-guardrails). AddSimpleConsole fija además el formateador por
+        // nombre: sin él, la consola copia sus opciones heredadas sobre las del formateador y no muestra los scopes.
+        builder.Logging.AddSimpleConsole(options => options.IncludeScopes = true);
         // RunAsync informa de los fallos de arranque con su código de salida y registra los inesperados con su
         // detalle; sin este filtro, una clave ausente mostraría además la traza completa del host.
         builder.Logging.AddFilter("Microsoft.Extensions.Hosting.Internal.Host", LogLevel.None);
@@ -59,20 +64,23 @@ public static partial class RunnerHost
         builder.Services.AddSingleton<GreetingRunner>();
 
         var configuration = builder.Configuration;
+        // Se lee el escenario de la configuración y no de AgentOptions para no encadenar su validación con la del
+        // inyector ni con la de los guardrails.
+        AgentScenario? CurrentScenario() =>
+            ScenarioCatalog.Find(configuration[$"{AgentOptions.SectionName}:{nameof(AgentOptions.Scenario)}"]);
+
         builder.Services.AddSandboxApplication()
             .Bind(configuration.GetSection(FaultInjectionOptions.SectionName))
-            // Los fallos de un escenario se suman a los configurados, sin pisar sus índices. Se lee el escenario de la
-            // configuración y no de AgentOptions para no encadenar su validación con la del inyector.
+            // Los fallos de un escenario se suman a los configurados, sin pisar sus índices.
             .PostConfigure(faults =>
             {
-                var scenario = ScenarioCatalog.Find(configuration[$"{AgentOptions.SectionName}:{nameof(AgentOptions.Scenario)}"]);
-                foreach (var rule in scenario?.CreateFaults() ?? [])
+                foreach (var rule in CurrentScenario()?.CreateFaults() ?? [])
                 {
                     faults.Rules.Add(rule);
                 }
             });
 
-        AddAgent(builder.Services);
+        AddAgent(builder.Services, CurrentScenario);
 
         return builder;
     }
@@ -83,12 +91,26 @@ public static partial class RunnerHost
         ?? ScenarioCatalog.Find(options.Scenario)?.CustomerId
         ?? AgentOptions.DefaultCustomerId;
 
-    private static void AddAgent(IServiceCollection services)
+    private static void AddAgent(IServiceCollection services, Func<AgentScenario?> currentScenario)
     {
         services.AddOptions<AgentOptions>()
             .BindConfiguration(AgentOptions.SectionName)
             .ValidateOnStart();
         services.AddSingleton<IValidateOptions<AgentOptions>, AgentOptionsValidator>();
+        services.AddOptions<GuardrailOptions>()
+            .BindConfiguration(GuardrailOptions.SectionName)
+            // Las tools de un escenario reducen la allow-list configurada, nunca la amplían (design D5). La validación
+            // corre después, así que una intersección vacía también da el código 2.
+            .PostConfigure(guardrails =>
+            {
+                if (currentScenario()?.AllowedTools is { } scenarioTools)
+                {
+                    guardrails.AllowedTools =
+                        [.. guardrails.EffectiveAllowedTools.Where(tool => scenarioTools.Contains(tool, StringComparer.Ordinal))];
+                }
+            })
+            .ValidateOnStart();
+        services.AddSingleton<IValidateOptions<GuardrailOptions>, GuardrailOptionsValidator>();
         services.AddSingleton(provider => new SalesSession(
             ResolveCustomerId(provider.GetRequiredService<IOptions<AgentOptions>>().Value)));
         services.AddSingleton<SalesTools>();
@@ -116,9 +138,15 @@ public static partial class RunnerHost
         try
         {
             await host.StartAsync(cancellationToken);
+            var exitCode = ExitCodes.Success;
             if (host.Services.GetRequiredService<IOptions<AgentOptions>>().Value.RunsAgent)
             {
-                await host.Services.GetRequiredService<AgentRunner>().RunAsync(output, cancellationToken);
+                var result = await host.Services.GetRequiredService<AgentRunner>().RunAsync(output, cancellationToken);
+                if (result.StopReason is not AgentStopReason.Completed)
+                {
+                    await error.WriteLineAsync($"La ejecución se detuvo por un guardrail: {result.StopReason}");
+                    exitCode = ExitCodes.StoppedByGuardrail;
+                }
             }
             else
             {
@@ -126,7 +154,7 @@ public static partial class RunnerHost
             }
 
             await host.StopAsync(cancellationToken);
-            return ExitCodes.Success;
+            return exitCode;
         }
         catch (OptionsValidationException exception)
         {

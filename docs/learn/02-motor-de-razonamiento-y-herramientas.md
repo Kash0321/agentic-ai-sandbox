@@ -86,6 +86,7 @@ Desde la fase 4 (change `add-sales-agent`):
 
 - **El agente no implementa el bucle a mano**: delega en `FunctionInvokingChatClient`. `SalesAgent` le pasa las instrucciones del sistema, la petición y las seis tools, y recoge el resultado.
 - **El bucle sigue con sus límites por defecto**: en la librería, `MaximumIterationsPerRequest` vale 40 y `MaximumConsecutiveErrorsPerRequest` vale 3. Fijar valores propios, mucho menores, es un guardrail de la fase 5.
+  - **Actualización de la fase 5**: hecho, pero no con esas dos propiedades solas. `MaximumIterationsPerRequest` hace una llamada extra sin tools al llegar al límite, y `MaximumConsecutiveErrorsPerRequest` solo cuenta excepciones, así que no cuenta los `ToolError` que devuelven nuestras tools. Los límites de llamadas, errores seguidos y tokens están en el [documento 05](05-guardrails.md).
 - **Las trazas del bucle se registran sin argumentos**: una entrada por tool (nombre, resultado y duración), los textos que el modelo emite entre llamadas y los tokens de cada llamada. Al final, el Runner muestra la respuesta y un resumen.
 
 ### Trazas reales (fase 4, `deepseek-flash`, sin razonamiento)

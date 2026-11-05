@@ -1,15 +1,29 @@
+using Sandbox.Application.Auditing;
 using Sandbox.Domain.Results;
 using Sandbox.Domain.Sales;
 
 namespace Sandbox.Application.Sales;
 
-/// <summary>Queries sobre el estado in-memory. Leen con el cerrojo tomado para ver un estado coherente.</summary>
-public sealed class SalesQueries(SalesState state) : ISalesQueries
+/// <summary>
+/// Queries sobre el estado in-memory. Leen con el cerrojo tomado para ver un estado coherente. Un cliente solo ve sus
+/// pedidos (design D1 de <c>add-agent-guardrails</c>).
+/// </summary>
+public sealed class SalesQueries(SalesState state, AuditLog audit) : ISalesQueries
 {
+    private const string GetOrder = nameof(GetOrder);
+
     public Task<Result<OrderView>> GetOrderAsync(GetOrderQuery query, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
-        return Find(state.Orders, query.OrderId, OrderView.From, SalesErrors.OrderNotFound, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var result = state.Locked(() =>
+        {
+            var found = OrderAccess.FindOwned(state, query.OrderId, query.CustomerId, GetOrder, audit);
+            return found.IsSuccess ? Result.Success(OrderView.From(found.Value)) : Result.Failure<OrderView>(found.Error);
+        });
+
+        return Task.FromResult(result);
     }
 
     public Task<Result<CustomerView>> GetCustomerAsync(GetCustomerQuery query, CancellationToken cancellationToken = default)

@@ -12,4 +12,10 @@ public static class SalesToolNames
 
     public static IReadOnlyList<string> All { get; } =
         [ListProducts, GetStock, GetCustomer, GetOrder, PlaceOrder, CancelOrder];
+
+    /// <summary>
+    /// Tools que solo leen. El resto cambia estado y queda marcado como tal por exclusión (<c>AGENTS.md</c>, sección
+    /// 4.7). El escenario de solo lectura permite exactamente estas (design D5 de <c>add-agent-guardrails</c>).
+    /// </summary>
+    public static IReadOnlyList<string> ReadOnly { get; } = [ListProducts, GetStock, GetCustomer, GetOrder];
 }

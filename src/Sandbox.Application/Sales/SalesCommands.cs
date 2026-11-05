@@ -1,4 +1,5 @@
 using System.Globalization;
+using Sandbox.Application.Auditing;
 using Sandbox.Domain.Results;
 using Sandbox.Domain.Sales;
 
@@ -6,10 +7,10 @@ namespace Sandbox.Application.Sales;
 
 /// <summary>
 /// Commands sobre el estado in-memory. Cada uno hace todo su trabajo en una sola sección crítica: idempotencia,
-/// validación, efectos y registro del resultado (design D5 y D6). La cancelación solo se comprueba al entrar, antes de
-/// cualquier efecto.
+/// autorización, validación, efectos y registro del resultado (design D5 y D6 de <c>add-order-domain</c>, D1 y D3 de
+/// <c>add-agent-guardrails</c>). La cancelación solo se comprueba al entrar, antes de cualquier efecto.
 /// </summary>
-public sealed class SalesCommands(SalesState state, TimeProvider timeProvider) : ISalesCommands
+public sealed class SalesCommands(SalesState state, TimeProvider timeProvider, AuditLog audit) : ISalesCommands
 {
     private const string PlaceOrder = nameof(PlaceOrder);
     private const string CancelOrder = nameof(CancelOrder);
@@ -25,32 +26,44 @@ public sealed class SalesCommands(SalesState state, TimeProvider timeProvider) :
             .. command.Lines.SelectMany(line => new[] { line.Sku, line.Quantity.ToString(CultureInfo.InvariantCulture) }),
         ];
 
-        return Execute(command.IdempotencyKey, PlaceOrder, arguments, () => Place(command), cancellationToken);
+        return Execute(
+            IdempotencyScope.ForCustomer(command.CustomerId),
+            command.IdempotencyKey,
+            PlaceOrder,
+            arguments,
+            () => Place(command),
+            cancellationToken);
     }
 
     public Task<Result<OrderView>> CancelOrderAsync(CancelOrderCommand command, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         return Execute(
+            IdempotencyScope.ForCustomer(command.CustomerId),
             command.IdempotencyKey,
             CancelOrder,
             [command.OrderId],
-            () => Transition(command.OrderId, order => order.Cancel(state.Stock)),
+            () => Transition(
+                OrderAccess.FindOwned(state, command.OrderId, command.CustomerId, CancelOrder, audit),
+                order => order.Cancel(state.Stock)),
             cancellationToken);
     }
 
+    // Enviar es una operación del almacén, sin cliente: no hay comprobación de pertenencia.
     public Task<Result<OrderView>> ShipOrderAsync(ShipOrderCommand command, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(command);
         return Execute(
+            IdempotencyScope.Warehouse,
             command.IdempotencyKey,
             ShipOrder,
             [command.OrderId],
-            () => Transition(command.OrderId, order => order.Ship(state.Stock)),
+            () => Transition(Find(command.OrderId), order => order.Ship(state.Stock)),
             cancellationToken);
     }
 
     private Task<Result<OrderView>> Execute(
+        IdempotencyScope scope,
         string idempotencyKey,
         string operation,
         IReadOnlyList<string> arguments,
@@ -66,7 +79,7 @@ public sealed class SalesCommands(SalesState state, TimeProvider timeProvider) :
 
         var result = state.Locked(() =>
         {
-            if (state.Idempotency.Replay(idempotencyKey, operation, arguments) is { } replayed)
+            if (state.Idempotency.Replay(scope, idempotencyKey, operation, arguments) is { } replayed)
             {
                 return replayed;
             }
@@ -74,7 +87,7 @@ public sealed class SalesCommands(SalesState state, TimeProvider timeProvider) :
             var outcome = run();
             if (outcome.IsSuccess)
             {
-                state.Idempotency.Remember(idempotencyKey, operation, arguments, outcome.Value);
+                state.Idempotency.Remember(scope, idempotencyKey, operation, arguments, outcome.Value);
             }
 
             return outcome;
@@ -107,14 +120,19 @@ public sealed class SalesCommands(SalesState state, TimeProvider timeProvider) :
         return Result.Success(OrderView.From(created.Value));
     }
 
-    private Result<OrderView> Transition(string orderId, Func<Order, Result<Order>> transition)
+    private Result<Order> Find(string orderId) =>
+        state.Orders.TryGetValue(orderId, out var order)
+            ? Result.Success(order)
+            : Result.Failure<Order>(SalesErrors.OrderNotFound());
+
+    private static Result<OrderView> Transition(Result<Order> found, Func<Order, Result<Order>> transition)
     {
-        if (!state.Orders.TryGetValue(orderId, out var order))
+        if (!found.IsSuccess)
         {
-            return Result.Failure<OrderView>(SalesErrors.OrderNotFound());
+            return Result.Failure<OrderView>(found.Error);
         }
 
-        var changed = transition(order);
+        var changed = transition(found.Value);
         return changed.IsSuccess
             ? Result.Success(OrderView.From(changed.Value))
             : Result.Failure<OrderView>(changed.Error);

@@ -12,7 +12,7 @@ La forma más directa es un parámetro: `place_order(customer_id, lines, …)`. 
 
 - **Prompt injection**: un texto como "haz el pedido a nombre de CUST-002" (escrito por el usuario o incrustado en un dato que el modelo lee) bastaría para actuar por otro cliente. El modelo no distingue de forma fiable instrucciones legítimas de inyectadas ([documento 05](../learn/05-guardrails.md), [documento 06](../learn/06-autenticacion-y-autorizacion.md)).
 - **Alucinación**: el modelo puede inventar o confundir un identificador.
-- **Contrato inestable**: la fase 5 trae la autorización (`FORBIDDEN`) y los guardrails. Si la identidad fuera un parámetro, habría que quitarlo entonces, rompiendo las tools, sus tests y el prompt.
+- **Contrato inestable**: la fase 5 trae la autorización y los guardrails. Si la identidad fuera un parámetro, habría que quitarlo entonces, rompiendo las tools, sus tests y el prompt.
 
 ## Decisión
 
@@ -34,7 +34,7 @@ Un test comprueba que ningún esquema de tool tiene un parámetro de cliente.
 ## Consecuencias
 
 - **El modelo no puede actuar en nombre de otro cliente** con las tools de creación. Un intento de *prompt injection* que pida otro cliente no tiene por dónde entrar.
-- **Limitación conocida de la fase 4**: `get_order` y `cancel_order` reciben un identificador de pedido y **no comprueban** que el pedido sea del cliente de sesión. El dominio ya guarda `Order.CustomerId`. La comprobación (`FORBIDDEN`) es de la fase 5, que se apoyará en este cliente de sesión.
+- **Limitación conocida de la fase 4, resuelta en la fase 5**: `get_order` y `cancel_order` recibían un identificador de pedido y **no comprobaban** que el pedido fuera del cliente de sesión. El change `add-agent-guardrails` añade la comprobación en la aplicación, apoyada en este cliente de sesión. Un pedido ajeno se responde como inexistente (`ORDER_NOT_FOUND`, no `FORBIDDEN`), y las claves de idempotencia pasan a ir por cliente: ver el [ADR 0005](0005-autorizacion-por-recurso-en-la-aplicacion.md).
 - **El contrato de las tools ya es el definitivo** respecto a la identidad: la fase 5 añade comprobaciones, no parámetros.
 - **Escenarios reproducibles**: cada escenario fija su cliente, y `--customer` permite probar otros (por ejemplo, el cliente bloqueado `CUST-003`).
 - **En un sistema real**, el cliente de sesión saldría de una identidad autenticada (un token con el usuario), no de un argumento de línea de comandos. Este laboratorio no tiene autenticación de usuarios (está fuera de alcance), pero el punto de entrada es el mismo: la identidad llega de fuera del modelo.

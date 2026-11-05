@@ -11,9 +11,13 @@ internal sealed class ScriptedChatClient(params ScriptStep[] steps) : IChatClien
 {
     private readonly Queue<ScriptStep> _steps = new(steps);
     private readonly List<IReadOnlyList<ChatMessage>> _requests = [];
+    private readonly List<ChatOptions?> _options = [];
 
     /// <summary>Mensajes recibidos en cada llamada, en orden.</summary>
     public IReadOnlyList<IReadOnlyList<ChatMessage>> Requests => _requests;
+
+    /// <summary>Opciones recibidas en cada llamada, en orden: entre otras cosas, las tools ofrecidas.</summary>
+    public IReadOnlyList<ChatOptions?> RequestOptions => _options;
 
     /// <summary>Resultados de tools que el modelo ha recibido, en orden de llegada.</summary>
     public IReadOnlyList<FunctionResultContent> ReceivedToolResults =>
@@ -26,6 +30,7 @@ internal sealed class ScriptedChatClient(params ScriptStep[] steps) : IChatClien
     {
         cancellationToken.ThrowIfCancellationRequested();
         _requests.Add([.. messages]);
+        _options.Add(options);
 
         return _steps.TryDequeue(out var step)
             ? Task.FromResult(step.ToResponse())

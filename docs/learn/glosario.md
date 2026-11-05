@@ -10,6 +10,9 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **AIFunction** | Tipo de `Microsoft.Extensions.AI` que representa una función descrita al modelo e invocable |
 | **Allow-list** | Lista de lo explícitamente permitido; lo demás se deniega |
 | **Auditoría** | Registro estructurado y fiable de quién hizo qué, cuándo y con qué resultado |
+| **Correlación** | Identificador compartido (aquí, el de la ejecución) que permite agrupar los eventos de distintas capas que pertenecen a la misma operación |
+| **Motivo de parada** | Por qué terminó una ejecución del agente: el modelo respondió (`Completed`) o un guardrail la paró (`ModelCallLimit`, `ToolErrorLimit`, `TokenBudget`) |
+| **Presupuesto de tokens** | Máximo de tokens de entrada y salida que puede gastar una ejecución; se comprueba antes de cada llamada al modelo |
 | **Bucle agéntico** | Ciclo en el que el modelo pide una tool, se ejecuta y se le devuelve el resultado, hasta que responde |
 | **ChatClientBuilder** | Constructor del pipeline de `IChatClient` por capas |
 | **Contexto (ventana de)** | Cantidad máxima de texto/tokens que el modelo puede procesar en una llamada |
@@ -24,6 +27,9 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **HITL (human-in-the-loop)** | Un humano aprueba o decide en puntos concretos del proceso |
 | **IChatClient** | Abstracción de `Microsoft.Extensions.AI` para conversar con un modelo |
 | **Idempotencia** | Repetir una operación produce el mismo efecto que hacerla una vez |
+| **Ámbito de idempotencia** | Espacio en el que una clave de idempotencia es única (aquí, el cliente o el almacén). Si es global, la repetición de otro usuario puede devolver un resultado ajeno y saltarse la autorización |
+| **BOLA (Broken Object Level Authorization)** | Fallo por el que se accede a un objeto ajeno cambiando su identificador en la petición; primero de la lista de riesgos de APIs de OWASP (2023) |
+| **Enumeración de recursos** | Descubrir qué recursos existen probando identificadores; se mitiga respondiendo igual a "no existe" y "no es tuyo" |
 | **Intersección de permisos** | Permiso efectivo de un agente que actúa por un usuario: solo lo que ambos tienen |
 | **JSON Schema** | Estándar para describir la estructura de un JSON; así se describen los parámetros de una tool |
 | **LLM** | Modelo de lenguaje de gran tamaño |
