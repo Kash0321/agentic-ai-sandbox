@@ -4,6 +4,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 using OpenAI.Chat;
+using Sandbox.Agents.Telemetry;
 
 namespace Sandbox.Agents.Chat;
 
@@ -13,7 +14,12 @@ public static class DeepSeekChatClientFactory
     /// <param name="options">Opciones ya validadas con <see cref="DeepSeekOptionsValidator"/>.</param>
     /// <param name="loggerFactory">Para el registro de cada llamada.</param>
     /// <param name="httpClient">Transporte HTTP opcional; si es <see langword="null"/>, el SDK usa el suyo.</param>
-    public static IChatClient Create(DeepSeekOptions options, ILoggerFactory loggerFactory, HttpClient? httpClient = null)
+    /// <param name="telemetry">Opciones de telemetría; sin ellas, los spans no llevan contenido.</param>
+    public static IChatClient Create(
+        DeepSeekOptions options,
+        ILoggerFactory loggerFactory,
+        HttpClient? httpClient = null,
+        TelemetryOptions? telemetry = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(loggerFactory);
@@ -34,7 +40,14 @@ public static class DeepSeekChatClientFactory
         var apiKey = options.ApiKey ?? throw new ArgumentException("Falta la API key.", nameof(options));
         var providerClient = new ChatClient(options.Model, new ApiKeyCredential(apiKey), clientOptions).AsIChatClient();
 
+        var captureContent = telemetry?.CaptureContent ?? false;
         var builder = providerClient.AsBuilder()
+            // Por fuera del traductor: el span copia el mensaje de la excepción en su estado, y el del proveedor puede
+            // repetir parte de la clave (design D2 de add-agent-observability). Sin ILoggerFactory, para que ningún
+            // contenido llegue a los registros de consola aunque se capture en los spans.
+            .UseOpenTelemetry(
+                sourceName: AgentTelemetry.SourceName,
+                configure: client => client.EnableSensitiveData = captureContent)
             .Use(inner => new ProviderErrorTranslatingChatClient(inner))
             .Use(inner => new UsageLoggingChatClient(inner, loggerFactory.CreateLogger<UsageLoggingChatClient>()));
 

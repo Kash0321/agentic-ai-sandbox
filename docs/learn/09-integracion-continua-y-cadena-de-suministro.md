@@ -182,7 +182,7 @@ Fichero: [`.github/dependabot.yml`](../../.github/dependabot.yml).
 | **Alertas** | Avisos de vulnerabilidades conocidas en las dependencias | Activadas en el repositorio |
 | **Actualizaciones de seguridad** | PRs que corrigen una vulnerabilidad, sin esperar a la revisión semanal | Activadas; no pertenecen a los grupos |
 
-Ecosistemas: `nuget` (`Directory.Packages.props`), `docker` (`/` y `/tools/openspec`) y `github-actions`.
+Ecosistemas: `nuget` (`Directory.Packages.props`), `docker` (`/` y `/tools/openspec`), `github-actions` y, desde la fase 5, `docker-compose` (`compose.yaml`, ver más abajo).
 
 GitHub **no** valida `dependabot.yml` en el PR: no apareció ningún check para ello. Antes del merge solo se pudo validar en local contra el esquema público de SchemaStore, que no es la fuente oficial de GitHub.
 
@@ -195,6 +195,17 @@ GitHub **no** valida `dependabot.yml` en el PR: no apareció ningún check para 
 | `nuget` | `xunit.v3` 4.0.2 en los proyectos de tests, con la versión en `Directory.Packages.props` (gestión centralizada) | "No updatable version found" |
 
 Queda pendiente **cómo reescribe** las referencias cuando sí hay versión nueva: si cambia etiqueta y digest a la vez, si actualiza el SHA y el comentario, y si edita `Directory.Packages.props` en lugar de los `.csproj` **(no verificado; pendiente de su primer PR)**. Cuál de las dos cosas (el comentario o la etiqueta que apunta al SHA) usa para identificar la versión de una acción tampoco se puede saber por el registro.
+
+#### Cuarto ecosistema: `docker-compose` (fase 5)
+
+El change `add-agent-observability` añadió a `compose.yaml` el panel de trazas, una imagen que **no** está en ningún `Dockerfile`, así que el ecosistema `docker` no la ve. GitHub Docs lista un ecosistema propio, `docker-compose`, y lo describe en una sola frase: "Dependabot supports Docker Compose in a similar way to Docker" (consultado el 2026-11-07). La misma tabla indica que admite **actualizaciones de versión, pero no de seguridad**. Se configuró igual que los otros: en `/`, semanal y agrupado.
+
+Lo que la documentación no aclara, y queda **(no verificado)** hasta que llegue a `main`:
+
+- si lee el nombre canónico `compose.yaml` o solo `docker-compose.yml`;
+- si reconoce la imagen fijada como `etiqueta@digest` y la reescribe entera, como hace `docker` con los `Dockerfile`.
+
+Se comprobará con su primera ejecución tras el merge (en el workflow "Dependabot Updates") y con su primer PR. Mientras tanto, la imagen del panel se puede actualizar a mano. Que no haya actualizaciones de seguridad importa menos aquí: el panel es una herramienta de desarrollo que solo escucha en `127.0.0.1`.
 
 ### Configuración que no vive en ficheros
 

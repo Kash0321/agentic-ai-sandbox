@@ -161,7 +161,7 @@ Framework previo de orquestación de Microsoft. Existe una guía oficial de migr
 | Tool | `AIFunction`, `AIFunctionFactory` | Describir e invocar funciones | Sí | [Tool calling](https://learn.microsoft.com/dotnet/ai/conceptual/calling-tools) |
 | Bucle de tools | `FunctionInvokingChatClient` | Ejecutar el ciclo automáticamente | Sí | [Tool calling](https://learn.microsoft.com/dotnet/ai/conceptual/calling-tools) |
 | Entrada inválida | `IncludeDetailedErrors` | Qué ve el modelo al fallar una tool | Sí | [Entrada inválida](https://learn.microsoft.com/dotnet/ai/how-to/handle-invalid-tool-input) |
-| Telemetría | `UseOpenTelemetry()` | Trazas y métricas | Sí (fase 2 o 5) | [M.E.AI](https://learn.microsoft.com/dotnet/ai/microsoft-extensions-ai) |
+| Telemetría | `UseOpenTelemetry()` | Trazas y métricas | Sí, desde la fase 5: por fuera del traductor de errores, sin `ILoggerFactory` y con la captura de contenido como opción propia; la variable estándar `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` no tiene efecto en la 10.11.0 ([documento 13](13-observabilidad-de-agentes.md)) | [IChatClient, telemetría](https://learn.microsoft.com/dotnet/ai/ichatclient#use-telemetry) |
 | Adaptador OpenAI | `Microsoft.Extensions.AI.OpenAI` | DeepSeek vía endpoint compatible | Sí (fase 2) | [AsIChatClient](https://learn.microsoft.com/dotnet/api/microsoft.extensions.ai.openaiclientextensions.asichatclient) |
 | Reductores de chat | `MessageCountingChatReducer`... | Limitar historial | Opcional | [IChatClient](https://learn.microsoft.com/dotnet/ai/ichatclient#chat-reduction-experimental) |
 | Agentes y workflows | Microsoft Agent Framework | Orquestación de alto nivel | No (comparación futura) | [Overview](https://learn.microsoft.com/agent-framework/overview/) |

@@ -60,7 +60,7 @@ Controlan lo que sale hacia el usuario o hacia otros sistemas.
 ### 5. Auditoría y observabilidad
 No bloquean, pero hacen posible investigar y demostrar.
 - Registro estructurado de cada tool: quién, qué, argumentos, decisión, resultado, correlación.
-- Trazas y métricas (OpenTelemetry).
+- Trazas y métricas (OpenTelemetry; en este proyecto, [documento 13](13-observabilidad-de-agentes.md)).
 - Detección de anomalías y *kill switch*.
 
 ## Patrones de diseño relevantes
@@ -145,7 +145,9 @@ Cuando un guardrail para la ejecución, el resultado no es una excepción ni una
 
 Cada invocación de tool deja un evento `ToolInvoked` con la tool, la **decisión** (`Allowed` o `Blocked`), el resultado y la duración, sin argumentos. Además hay eventos para las tools inventadas, las paradas y los accesos denegados de la aplicación. Todos van a la categoría `Sandbox.Audit` y llevan, por un *scope* de registro, el identificador de la ejecución y el cliente. El *scope* sigue el flujo asíncrono, así que también lo llevan los eventos que emite la aplicación, que no sabe nada del agente.
 
-En un sistema real la auditoría iría a un almacén duradero e inalterable, separado del registro operativo; aquí basta con el registro estructurado, que OpenTelemetry podrá exportar en el tercer change de la fase. En la consola, cada línea de una ejecución lleva delante `=> Ejecución <id> del cliente CUST-001`.
+En un sistema real la auditoría iría a un almacén duradero e inalterable, separado del registro operativo; aquí basta con el registro estructurado. En la consola, cada línea de una ejecución lleva delante `=> Ejecución <id> del cliente CUST-001`.
+
+**Auditoría y trazas (tercer change de la fase, `add-agent-observability`)**: con la telemetría activa, los eventos de `Sandbox.Audit` también se exportan por OTLP. Llevan el mensaje ya formateado, sus propiedades, las del *scope* (`RunId`, `CustomerId`) y el identificador de la traza y del span en el que se emitieron. En el panel, cada evento enlaza con su traza: `ToolInvoked` queda dentro del span `execute_tool` de esa tool, y `ApprovalDecided`, dentro del span `approval`. El span raíz de la ejecución lleva el mismo `RunId` (`sandbox.run.id`), así que se puede ir de la auditoría a la traza y al revés. Las reglas de la auditoría siguen valiendo en la telemetría: sin argumentos, sin la petición y sin secretos, salvo que se active expresamente la captura de contenido ([documento 13](13-observabilidad-de-agentes.md) y [ADR 0006](../adr/0006-telemetria-opcional-y-sin-contenido.md)). Exportar no convierte el registro en un almacén de auditoría: el panel lo guarda en memoria y lo pierde al pararse.
 
 ### Confirmación humana: pausa y reanudación
 

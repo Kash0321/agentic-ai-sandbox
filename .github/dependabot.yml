@@ -28,6 +28,19 @@ updates:
       docker:
         patterns: ["*"]
 
+  # Imágenes de los servicios de compose (el panel de trazas). Solo actualizaciones de versión: según GitHub Docs, este
+  # ecosistema no admite actualizaciones de seguridad (comprobado el 2026-11-07).
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Madrid
+    groups:
+      docker-compose:
+        patterns: ["*"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

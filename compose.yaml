@@ -1,6 +1,13 @@
 # Ejecución local one-shot del Runner, con la API key de DeepSeek como secreto por fichero:
 #   DEEPSEEK_API_KEY_FILE=<ruta al fichero con la clave> docker compose run --build --rm runner
 # Sin DEEPSEEK_API_KEY_FILE se usa ./secrets/deepseek_api_key (secrets/ está en .gitignore y .dockerignore).
+#
+# Panel de trazas opcional (perfil dashboard, solo para desarrollo):
+#   docker compose --profile dashboard up -d dashboard
+#   docker compose logs dashboard        # URL de acceso con el token, que cambia en cada arranque
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://dashboard:18889 docker compose run --build --rm runner --scenario happy-order
+# Desde dotnet run en local, el endpoint es http://localhost:4317. Sin OTEL_EXPORTER_OTLP_ENDPOINT no se exporta nada:
+# con un endpoint sin receptor, el Runner tarda unos 12 s más en salir.
 services:
   runner:
     build:
@@ -15,11 +22,36 @@ services:
     mem_limit: 256m
     cpus: 1.0
     # Red por defecto de compose: el Runner llama a la API de DeepSeek.
-    # Limitar la salida a un único destino es de la fase 5.
+    # Limitar la salida a un único destino queda como ejercicio posterior (documento 07).
+    environment:
+      # Vacía por defecto: la telemetría solo se exporta cuando quien ejecuta lo pide.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     secrets:
       # Se monta en /run/secrets/DeepSeek__ApiKey; key-per-file lo lee como DeepSeek:ApiKey
       - source: deepseek_api_key
         target: DeepSeek__ApiKey
+
+  # Aspire Dashboard autónomo: recibe OTLP y muestra trazas, registros y métricas. Herramienta de desarrollo, no de
+  # monitorización. Imagen verificada en MCR el 2026-11-07 (última estable, fijada por digest).
+  dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6.4@sha256:55a5a9fb88ddcff91997d6889912a19a1627e3584bd41fa5141c9db5f8376754
+    profiles:
+      - dashboard
+    read_only: true
+    # Necesita crear un directorio temporal al arrancar; sin él falla con "Read-only file system".
+    tmpfs:
+      - /tmp:size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    cpus: 1.0
+    ports:
+      # Solo en el equipo local. La UI pide un token; el OTLP no tiene autenticación (el panel lo avisa al arrancar).
+      - "127.0.0.1:18888:18888"
+      # OTLP gRPC, para dotnet run en local. El OTLP HTTP (18890) y el MCP (18891) no se publican.
+      - "127.0.0.1:4317:18889"
 
 secrets:
   deepseek_api_key:
