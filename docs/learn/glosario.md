@@ -185,3 +185,10 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **Captura de contenido** | Incluir en la telemetría los mensajes, argumentos y resultados de una conversación con el modelo; aquí, opción desactivada por defecto |
 | **`tmpfs`** | Sistema de ficheros en memoria montado en un contenedor; permite escribir en una ruta concreta con el resto de solo lectura |
 | **Perfil (compose)** | Etiqueta que hace que un servicio solo se cree cuando se activa (`--profile`); aquí, el panel de trazas |
+| **Oráculo de prueba** | Mecanismo que decide si el resultado de una prueba es correcto; aquí, las comprobaciones de cada escenario sobre el estado final |
+| **Invariante de seguridad** | Comprobación de que "nada malo ha pasado" que debe cumplirse sea cual sea el camino del modelo (por ejemplo, ningún pedido duplicado); si falla, el Runner sale con el código 5 |
+| **Comprobación de objetivo** | Comprobación de que "lo pedido se ha conseguido"; depende de que el modelo haga bien su trabajo y solo se informa. Adapta la idea de propiedad de vivacidad (*liveness*) |
+| **Modelo guionizado** | Doble del LLM que devuelve las respuestas fijas del guion de un escenario (`--model scripted`); sustituye solo al proveedor y se identifica como `scripted` |
+| **Matriz de escenarios** | Catálogo de escenarios que se ejecutan siempre igual, con su preparación, su guion y sus comprobaciones; se recorre en los tests, en la consola, en el contenedor y en la CI |
+| **Veredicto** | Resumen de las comprobaciones de un escenario: `NO SEGURO`, o seguro con el objetivo cumplido, no cumplido o sin objetivo |
+| **Lectura de inspección** | Foto del estado completo (todos los pedidos y el stock) para evaluar escenarios; no pasa por la autorización por cliente y nunca se ofrece como tool |

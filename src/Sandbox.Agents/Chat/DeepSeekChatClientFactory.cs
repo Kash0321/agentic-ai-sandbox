@@ -8,7 +8,10 @@ using Sandbox.Agents.Telemetry;
 
 namespace Sandbox.Agents.Chat;
 
-/// <summary>Construye el <see cref="IChatClient"/> hacia DeepSeek con el SDK de OpenAI y sus decoradores.</summary>
+/// <summary>
+/// Construye el <see cref="IChatClient"/> hacia DeepSeek con el SDK de OpenAI, la decoración común de
+/// <see cref="ChatClientPipeline"/> y el interruptor del razonamiento, que es propio de DeepSeek.
+/// </summary>
 public static class DeepSeekChatClientFactory
 {
     /// <param name="options">Opciones ya validadas con <see cref="DeepSeekOptionsValidator"/>.</param>
@@ -40,16 +43,7 @@ public static class DeepSeekChatClientFactory
         var apiKey = options.ApiKey ?? throw new ArgumentException("Falta la API key.", nameof(options));
         var providerClient = new ChatClient(options.Model, new ApiKeyCredential(apiKey), clientOptions).AsIChatClient();
 
-        var captureContent = telemetry?.CaptureContent ?? false;
-        var builder = providerClient.AsBuilder()
-            // Por fuera del traductor: el span copia el mensaje de la excepción en su estado, y el del proveedor puede
-            // repetir parte de la clave (design D2 de add-agent-observability). Sin ILoggerFactory, para que ningún
-            // contenido llegue a los registros de consola aunque se capture en los spans.
-            .UseOpenTelemetry(
-                sourceName: AgentTelemetry.SourceName,
-                configure: client => client.EnableSensitiveData = captureContent)
-            .Use(inner => new ProviderErrorTranslatingChatClient(inner))
-            .Use(inner => new UsageLoggingChatClient(inner, loggerFactory.CreateLogger<UsageLoggingChatClient>()));
+        var builder = ChatClientPipeline.CreateBuilder(providerClient, loggerFactory, telemetry);
 
         if (!options.Thinking)
         {

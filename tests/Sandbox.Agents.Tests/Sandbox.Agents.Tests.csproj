@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <!-- Modelo con guion de producción (design D8 de add-scenario-engine) -->
+    <Using Include="Sandbox.Agents.Scripting" />
   </ItemGroup>
 
   <ItemGroup>

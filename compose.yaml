@@ -2,6 +2,11 @@
 #   DEEPSEEK_API_KEY_FILE=<ruta al fichero con la clave> docker compose run --build --rm runner
 # Sin DEEPSEEK_API_KEY_FILE se usa ./secrets/deepseek_api_key (secrets/ está en .gitignore y .dockerignore).
 #
+# Demostración sin clave ni llamadas a DeepSeek: el modelo guionizado y list no necesitan la API key. Si el fichero del
+# secreto no existe, compose solo avisa ("secret file ... does not exist") y el Runner funciona (comprobado el 2026-11-07):
+#   docker compose run --build --rm runner list
+#   docker compose run --rm runner --scenario happy-order --model scripted
+#
 # Panel de trazas opcional (perfil dashboard, solo para desarrollo):
 #   docker compose --profile dashboard up -d dashboard
 #   docker compose logs dashboard        # URL de acceso con el token, que cambia en cada arranque

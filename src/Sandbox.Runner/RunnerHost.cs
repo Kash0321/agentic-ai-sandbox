@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,11 +10,13 @@ using Sandbox.Agents.Agent;
 using Sandbox.Agents.Approval;
 using Sandbox.Agents.Chat;
 using Sandbox.Agents.Guardrails;
+using Sandbox.Agents.Scripting;
 using Sandbox.Agents.Telemetry;
 using Sandbox.Agents.Tools;
 using Sandbox.Application;
 using Sandbox.Application.FaultInjection;
 using Sandbox.Runner.Agent;
+using Sandbox.Runner.Scenarios;
 using Sandbox.Runner.Telemetry;
 
 namespace Sandbox.Runner;
@@ -42,6 +45,14 @@ public static partial class RunnerHost
         // --scenario, --prompt y --customer se traducen a la sección Agent. Va antes de los secretos, que mantienen la
         // máxima prioridad; las claves no se solapan.
         builder.Configuration.AddCommandLine(args, new Dictionary<string, string>(AgentOptions.CommandLineSwitches));
+        // La configuración ignora los argumentos posicionales (como la suborden list): se añaden aparte para validarlos.
+        var positional = AgentOptions.PositionalArguments(args);
+        if (positional.Count > 0)
+        {
+            builder.Configuration.AddInMemoryCollection(
+                [new($"{AgentOptions.SectionName}:{nameof(AgentOptions.Command)}", string.Join(' ', positional))]);
+        }
+
         builder.Configuration.AddKeyPerFile(secretsDirectory, optional: true);
 
         // La salida estándar queda solo para el resultado; todos los registros van a la de errores.
@@ -60,20 +71,36 @@ public static partial class RunnerHost
             // Un fichero de secreto suele acabar en salto de línea, y la clave no debe llevarlo.
             .PostConfigure(options => options.ApiKey = options.ApiKey?.Trim())
             .ValidateOnStart();
-        builder.Services.AddSingleton<IValidateOptions<DeepSeekOptions>, DeepSeekOptionsValidator>();
+        var configuration = builder.Configuration;
+        // Se leen el escenario, el modelo y la suborden de la configuración, y no de AgentOptions, para no encadenar su
+        // validación con la del inyector, la de los guardrails ni la de DeepSeek.
+        string? AgentSetting(string property) => configuration[$"{AgentOptions.SectionName}:{property}"];
+        AgentScenario? CurrentScenario() => ScenarioCatalog.Find(AgentSetting(nameof(AgentOptions.Scenario)));
+        bool UsesScriptedModel() => AgentOptions.IsScripted(AgentSetting(nameof(AgentOptions.ModelSource)));
+        // Con el modelo con guion o con list no se exige la clave ni se construye el cliente del proveedor (design D6).
+        bool UsesProvider() => !UsesScriptedModel() && !AgentOptions.IsList(AgentSetting(nameof(AgentOptions.Command)));
+
+        builder.Services.AddSingleton<IValidateOptions<DeepSeekOptions>>(
+            new ProviderOptionsValidator(new DeepSeekOptionsValidator(), UsesProvider));
         builder.Services.AddOptions<TelemetryOptions>()
             .Bind(builder.Configuration.GetSection(TelemetryOptions.SectionName));
-        builder.Services.AddSingleton(services => DeepSeekChatClientFactory.Create(
-            services.GetRequiredService<IOptions<DeepSeekOptions>>().Value,
-            services.GetRequiredService<ILoggerFactory>(),
-            telemetry: services.GetRequiredService<IOptions<TelemetryOptions>>().Value));
-        builder.Services.AddSingleton<GreetingRunner>();
+        builder.Services.AddSingleton(services =>
+        {
+            var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+            var telemetry = services.GetRequiredService<IOptions<TelemetryOptions>>().Value;
+            if (UsesScriptedModel())
+            {
+                var script = CurrentScenario()?.Script
+                    ?? throw new InvalidOperationException("El modelo con guion necesita un escenario.");
+                return ChatClientPipeline.CreateBuilder(new ScriptedChatClient([.. script]), loggerFactory, telemetry).Build();
+            }
 
-        var configuration = builder.Configuration;
-        // Se lee el escenario de la configuración y no de AgentOptions para no encadenar su validación con la del
-        // inyector ni con la de los guardrails.
-        AgentScenario? CurrentScenario() =>
-            ScenarioCatalog.Find(configuration[$"{AgentOptions.SectionName}:{nameof(AgentOptions.Scenario)}"]);
+            return DeepSeekChatClientFactory.Create(
+                services.GetRequiredService<IOptions<DeepSeekOptions>>().Value,
+                loggerFactory,
+                telemetry: telemetry);
+        });
+        builder.Services.AddSingleton<GreetingRunner>();
 
         builder.Services.AddSandboxApplication()
             .Bind(configuration.GetSection(FaultInjectionOptions.SectionName))
@@ -127,8 +154,9 @@ public static partial class RunnerHost
     }
 
     /// <summary>
-    /// Arranca el host (lo que valida las opciones), ejecuta el saludo y devuelve el código de salida.
-    /// Los mensajes de error son breves y nunca incluyen trazas ni secretos; el detalle va al registro.
+    /// Arranca el host (lo que valida las opciones), ejecuta la suborden <c>list</c>, el agente o el saludo, y devuelve
+    /// el código de salida. Los mensajes de error son breves y nunca incluyen trazas ni secretos; el detalle va al
+    /// registro.
     /// </summary>
     public static async Task<int> RunAsync(
         HostApplicationBuilder builder,
@@ -148,14 +176,15 @@ public static partial class RunnerHost
             await host.StartAsync(cancellationToken);
             ReportTelemetry(host.Services, logger);
             var exitCode = ExitCodes.Success;
-            if (host.Services.GetRequiredService<IOptions<AgentOptions>>().Value.RunsAgent)
+            var agentOptions = host.Services.GetRequiredService<IOptions<AgentOptions>>().Value;
+            if (agentOptions.ListsScenarios)
+            {
+                await WriteScenarioListAsync(output);
+            }
+            else if (agentOptions.RunsAgent)
             {
                 var result = await host.Services.GetRequiredService<AgentRunner>().RunAsync(output, cancellationToken);
-                if (result.StopReason is not AgentStopReason.Completed)
-                {
-                    await error.WriteLineAsync($"La ejecución se detuvo por un guardrail: {result.StopReason}");
-                    exitCode = ExitCodes.StoppedByGuardrail;
-                }
+                exitCode = await ExitCodeForAsync(result, error);
             }
             else
             {
@@ -214,6 +243,39 @@ public static partial class RunnerHost
         {
             LogTelemetryWithContent(logger);
         }
+    }
+
+    /// <summary>Una línea por escenario, sin cabecera y con el identificador primero: la CI toma la primera columna.</summary>
+    private static async Task WriteScenarioListAsync(TextWriter output)
+    {
+        var idWidth = ScenarioCatalog.All.Max(scenario => scenario.Id.Length);
+        foreach (var scenario in ScenarioCatalog.All)
+        {
+            await output.WriteLineAsync($"{scenario.Id.PadRight(idWidth)}  {scenario.CustomerId}  {scenario.Description}");
+        }
+    }
+
+    /// <summary>
+    /// Código de una ejecución del agente (design D5 de <c>add-scenario-engine</c>): 5 si falla alguna comprobación de
+    /// seguridad, si no 4 si la paró un guardrail, y si no 0. No cumplir el objetivo no cambia el código.
+    /// </summary>
+    private static async Task<int> ExitCodeForAsync(AgentRunnerResult result, TextWriter error)
+    {
+        var stoppedByGuardrail = result.Run.StopReason is not AgentStopReason.Completed;
+        if (stoppedByGuardrail)
+        {
+            await error.WriteLineAsync($"La ejecución se detuvo por un guardrail: {result.Run.StopReason}");
+        }
+
+        if (result.Verdict is { IsSafe: false } verdict)
+        {
+            await error.WriteLineAsync(string.Create(
+                CultureInfo.InvariantCulture,
+                $"El escenario no es seguro: {verdict.FailedSafetyChecks} comprobaciones de seguridad fallidas"));
+            return ExitCodes.UnsafeScenario;
+        }
+
+        return stoppedByGuardrail ? ExitCodes.StoppedByGuardrail : ExitCodes.Success;
     }
 
     private static async Task<int> ReportInvalidConfigurationAsync(

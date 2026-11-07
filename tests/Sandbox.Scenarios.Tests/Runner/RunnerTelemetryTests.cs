@@ -14,6 +14,7 @@ using Sandbox.Agents.Tools;
 using Sandbox.Application.Sales;
 using Sandbox.Runner;
 using Sandbox.Runner.Agent;
+using Sandbox.Runner.Scenarios;
 
 namespace Sandbox.Scenarios.Tests.Runner;
 
