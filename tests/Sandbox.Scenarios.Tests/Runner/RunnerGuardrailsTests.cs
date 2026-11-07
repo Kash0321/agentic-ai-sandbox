@@ -12,6 +12,7 @@ using Sandbox.Application.Auditing;
 using Sandbox.Application.Sales;
 using Sandbox.Runner;
 using Sandbox.Runner.Agent;
+using Sandbox.Runner.Scenarios;
 
 namespace Sandbox.Scenarios.Tests.Runner;
 

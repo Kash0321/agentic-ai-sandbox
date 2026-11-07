@@ -63,6 +63,19 @@ El explore de la fase repartió el alcance en tres changes, para que cada PR sea
 
 Criterio de salida de la fase: cada guardrail tiene tests sin LLM (límites, allow-list, autorización por recurso, confirmación humana y auditoría), y las acciones bloqueadas devuelven un error tipado (`BLOCKED_BY_POLICY`, `ORDER_NOT_FOUND`, `CONFIRMATION_DENIED`, `UNKNOWN_TOOL`). El panel de trazas OTLP opcional muestra una ejecución real como una sola traza, incluida la espera de una aprobación humana. Fuera de la fase quedó limitar la salida de red del `runner` a un único destino (documento 07).
 
+## Fase 6: cuatro changes
+
+El explore de la fase (2026-11-07) partió de un objetivo añadido: que el producto final del laboratorio sirva para **hacer demostraciones al equipo** de lo verificado. Por eso los escenarios se comprueban a sí mismos desde el Runner, y no solo en los tests. Además, un **modelo guionizado** permite enseñar sin clave ni red lo que la arquitectura contiene cuando el modelo se equivoca, porque con un modelo real no se puede garantizar que se equivoque.
+
+| Change | Contenido | Estado |
+|--------|-----------|--------|
+| `add-scenario-engine` | Escenarios con descripción, guion y comprobaciones de seguridad (código 5 si fallan) y de objetivo (informativas); comprobaciones comunes (stock cuadrado, ningún pedido nuevo de otro cliente); modelo guionizado con `--model scripted`, que sustituye solo al proveedor y se identifica como `scripted`; suborden `list`; lectura de inspección que nunca es una tool; matriz en los tests y en el check `image` de la CI (ADR 0007) | Implementado, verificado en local, en contenedor y contra DeepSeek (con aprobación real en consola y el panel de trazas), y archivado en la rama del change |
+| Escenarios nuevos | Stock agotado, pedido inexistente, pedido de otro cliente, fallo transitorio y fallo persistente | Pendiente |
+| *Prompt injection* | Directa (en la petición) e indirecta (en el resultado de una tool), con un modelo guionizado que obedece la inyección y la contención del sistema | Pendiente |
+| Suite contra DeepSeek | Repeticiones de cada escenario con el modelo real y tasa de veredictos de seguridad y de objetivo | Pendiente |
+
+Criterio de salida de la fase: la matriz de escenarios está documentada (documento 14) y se ejecuta en los tests, en la consola, en el contenedor y en la CI; cada escenario da un veredicto seguro con su guion; y la suite contra DeepSeek mide el objetivo con el modelo real.
+
 ## Contenedores
 
 Lo que se desarrolla se construye, prueba y ejecuta también en contenedor. Decisiones:

@@ -205,6 +205,7 @@ El **código de salida** es el número que un proceso devuelve al terminar. Por 
 | `2` | Configuración inválida | Sin clave, o con la clave solo en User Secrets y el entorno `Production`; desde la fase 3, también una regla del inyector de fallos inválida |
 | `3` | Fallo al llamar al modelo | Clave rechazada (HTTP 401), límite de peticiones, error del proveedor o de red |
 | `4` | Un guardrail paró la ejecución del agente (desde la fase 5) | `--Guardrails:TokenBudget=2000` con el escenario feliz: el presupuesto se agota antes de la respuesta final ([documento 05](05-guardrails.md)) |
+| `5` | Un escenario terminó con alguna comprobación de seguridad fallida; prevalece sobre el `4` (desde la fase 6) | `lost-response` con un modelo falso que, tras el fallo, repite `place_order` con otra clave: dos pedidos y "Veredicto: NO SEGURO" ([documento 14](14-pruebas-y-evaluacion-de-sistemas-agenticos.md)) |
 
 ```
 RunnerHost.RunAsync
@@ -215,14 +216,15 @@ RunnerHost.RunAsync
   GreetingRunner o AgentRunner -- ChatProviderException ------> 3 "Fallo al llamar al modelo: ..."
         |                  \----- otra excepción -------------> 1 "Error inesperado" (detalle en el registro)
         v
-  resultado en stdout
+  resultado en stdout (con un escenario, también sus comprobaciones y el veredicto)
+        |--- comprobación de seguridad del escenario fallida -----> 5 "El escenario no es seguro: ..."
         |--- agente parado por un guardrail ----------------------> 4 "La ejecución se detuvo por un guardrail: ..."
         \--- en otro caso ----------------------------------------> 0
 ```
 
 Por qué no basta con 0 y 1: la CI usa el código 2 como prueba de que la imagen arranca, lee la configuración y falla de forma controlada sin clave ([documento 09](09-integracion-continua-y-cadena-de-suministro.md)). Si devolviera 1 en ese caso, la CI no podría distinguirlo de un fallo real.
 
-Los valores 2, 3 y 4 son criterio propio. El 4 distingue una parada controlada por un guardrail de un éxito (el modelo terminó) y de un fallo: la ejecución acabó bien, pero no hizo todo lo pedido. No hay un estándar de códigos para .NET: en Unix, `sysexits.h` propone códigos a partir de 64 (por ejemplo, `78` para un error de configuración), pero pocos programas lo siguen **(no verificado en una fuente primaria)**. Mantenerlos bajos y documentados en la spec es suficiente para este proyecto.
+Los valores 2, 3, 4 y 5 son criterio propio. El 4 distingue una parada controlada por un guardrail de un éxito (el modelo terminó) y de un fallo: la ejecución acabó bien, pero no hizo todo lo pedido. El 5 marca un defecto del sistema: haga lo que haga el modelo, una invariante de seguridad del escenario no se cumplió. Por eso prevalece sobre el 4, y no cumplir el objetivo de un escenario no cambia el código. No hay un estándar de códigos para .NET: en Unix, `sysexits.h` propone códigos a partir de 64 (por ejemplo, `78` para un error de configuración), pero pocos programas lo siguen **(no verificado en una fuente primaria)**. Mantenerlos bajos y documentados en la spec es suficiente para este proyecto.
 
 ## Cómo se aplica en este proyecto
 

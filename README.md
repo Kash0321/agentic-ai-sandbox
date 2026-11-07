@@ -125,6 +125,11 @@ Tokens: 13 de entrada y 2 de salida
   - `-- --prompt "¿Qué productos tenéis?"` envía un texto libre.
 
   Añade `--customer CUST-002` para actuar como otro cliente; por defecto, `CUST-001`. La salida muestra la respuesta final y un resumen con las llamadas al modelo, las tools y los tokens. Cada ejecución hace varias llamadas al modelo: un pedido gasta unos 4.500 tokens de entrada. Detalle en [`docs/learn/12-diseno-de-tools-para-llms.md`](docs/learn/12-diseno-de-tools-para-llms.md).
+- **Escenarios que se comprueban a sí mismos**. Al terminar un escenario, el Runner evalúa sus comprobaciones y escribe un veredicto:
+  - las de **seguridad** (por ejemplo, ningún pedido duplicado o el stock cuadra) deben cumplirse sea cual sea el camino del modelo; si falla alguna, el código de salida es 5;
+  - las de **objetivo** (por ejemplo, el cliente tiene su pedido) dependen del modelo y solo se informan.
+
+  `-- list` muestra los escenarios con su descripción, sin clave. Con `--model scripted`, el escenario se ejecuta con un **modelo guionizado**: respuestas fijas del escenario en lugar de DeepSeek, sin clave ni red, para enseñar en una demostración qué contiene la arquitectura aunque el modelo se equivoque. La salida empieza por `MODELO GUIONIZADO` para que nadie lo confunda con el real. Por ejemplo, `-- --scenario cancel-order --model scripted --customer CUST-002` intenta cancelar el pedido de otro cliente: la consola pregunta antes de ejecutar y, aunque la persona apruebe, la autorización lo para con `ORDER_NOT_FOUND` (sin consola interactiva, la confirmación ya se deniega). Detalle en [`docs/learn/14-pruebas-y-evaluacion-de-sistemas-agenticos.md`](docs/learn/14-pruebas-y-evaluacion-de-sistemas-agenticos.md) y en el [ADR 0007](docs/adr/0007-escenarios-autoverificables-con-modelo-guionizado.md).
 - Cada ejecución del agente pasa por **guardrails** configurables en la sección `Guardrails`:
   - `MaxModelCalls` (10): máximo de llamadas al modelo;
   - `MaxConsecutiveToolErrors` (3): tools seguidas que pueden fallar;
@@ -160,6 +165,7 @@ Códigos de salida del Runner:
 | `2` | Configuración inválida, por ejemplo, falta la API key |
 | `3` | Fallo al llamar al modelo: autenticación, red o error del proveedor |
 | `4` | Un guardrail paró la ejecución del agente (llamadas, errores seguidos o tokens); la salida muestra el motivo |
+| `5` | Un escenario terminó con alguna comprobación de seguridad fallida; prevalece sobre el `4` |
 
 Detalle en [`docs/learn/10-configuracion-y-secretos-en-net.md`](docs/learn/10-configuracion-y-secretos-en-net.md).
 
@@ -185,6 +191,7 @@ docker compose run --build --rm runner
 - La clave llega al contenedor como **secreto de compose**: se monta en `/run/secrets/DeepSeek__ApiKey` y nunca está en la imagen, en `compose.yaml` ni en las variables de entorno del contenedor.
 - Sin `DEEPSEEK_API_KEY_FILE` se usa `secrets/deepseek_api_key`, que Git ignora. Si el fichero no existe, compose solo avisa y el Runner termina con el código 2.
 - El `runner` tiene red para llegar a la API de DeepSeek. Limitar la salida a ese único destino queda como ejercicio posterior.
+- Para una demostración sin clave: `docker compose run --build --rm runner list` y `docker compose run --rm runner --scenario happy-order --model scripted`.
 
 ### Panel de trazas (opcional)
 
@@ -210,7 +217,7 @@ Cada pull request y cada push a `main` ejecutan [`.github/workflows/ci.yml`](.gi
 | Check | Qué comprueba |
 |---|---|
 | `test` | `docker build --target test`: compilación y tests, igual que en local |
-| `image` | La imagen final arranca con las restricciones del `runner` y, sin API key, termina con el código 2 nombrando la opción que falta; además, no tiene vulnerabilidades altas o críticas con arreglo (Grype) |
+| `image` | La imagen final arranca con las restricciones del `runner` y, sin API key, termina con el código 2 nombrando la opción que falta; cada escenario de `list`, con el modelo guionizado y sin red, termina con el código 0 y un veredicto seguro; además, no tiene vulnerabilidades altas o críticas con arreglo (Grype) |
 | `openspec` | `openspec validate --all --strict` |
 
 Dependabot propone cada semana las actualizaciones de NuGet, de las imágenes base y de las acciones, y las de seguridad en cuanto se publican. Para validar las specs sin instalar Node, puedes usar la misma imagen que la CI:
@@ -238,6 +245,8 @@ Este laboratorio sirve también para **aprender** los conceptos que valida. La c
 - [Configuración y secretos en una consola .NET](docs/learn/10-configuracion-y-secretos-en-net.md): host genérico, fuentes de configuración, User Secrets, secretos por fichero, validación al arrancar y códigos de salida.
 - [Diseño de dominios aptos para agentes](docs/learn/11-dominios-aptos-para-agentes.md): máquinas de estado, errores con código estable, idempotencia e inyección de fallos.
 - [Diseño de tools para LLMs](docs/learn/12-diseno-de-tools-para-llms.md): nombres, descripciones, esquemas, errores accionables y la identidad fuera del contrato.
+- [Observabilidad de agentes](docs/learn/13-observabilidad-de-agentes.md): trazas, registros y métricas con OpenTelemetry y el Aspire Dashboard.
+- [Pruebas y evaluación de sistemas agénticos](docs/learn/14-pruebas-y-evaluacion-de-sistemas-agenticos.md): oráculos, seguridad frente a objetivo, el modelo guionizado y la matriz de escenarios.
 - [Glosario](docs/learn/glosario.md)
 
 ## Flujo de trabajo con OpenSpec
@@ -302,7 +311,7 @@ agentic-ai-sandbox/
 
 ## Estado
 
-Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) y 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) completadas. En curso: **fase 5 · Guardrails**, en tres changes; el primero (`add-agent-guardrails`) trae la autorización por recurso, los límites de llamadas, errores y tokens, la allow-list y la auditoría, el segundo (`add-tool-approval`), la confirmación humana de las acciones irreversibles, y el tercero (`add-agent-observability`), la observabilidad con OpenTelemetry y el Aspire Dashboard como perfil opcional de compose. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos), 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) y 5 (**Guardrails**: autorización por recurso, límites, allow-list, auditoría, confirmación humana y observabilidad con OpenTelemetry) completadas. En curso: **fase 6 · Casos de prueba y escenarios**, en cuatro changes; el primero (`add-scenario-engine`) trae los escenarios que se comprueban a sí mismos, el modelo guionizado para demostraciones sin clave y la matriz de escenarios en los tests y en la CI. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

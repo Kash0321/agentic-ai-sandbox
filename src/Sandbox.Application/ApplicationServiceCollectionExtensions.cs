@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sandbox.Application.Auditing;
 using Sandbox.Application.FaultInjection;
+using Sandbox.Application.Inspection;
 using Sandbox.Application.Sales;
 
 namespace Sandbox.Application;
@@ -24,6 +25,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton(_ => SeedCatalog.CreateState());
         services.AddSingleton<SalesCommands>();
         services.AddSingleton<SalesQueries>();
+        services.AddSingleton<SalesInspector>();
         services.AddSingleton<FaultInjector>();
         services.AddSingleton<ISalesCommands>(provider => new FaultInjectingSalesCommands(
             provider.GetRequiredService<SalesCommands>(),

@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <!-- Modelo con guion de producción (design D8 de add-scenario-engine) -->
+    <Using Include="Sandbox.Agents.Scripting" />
   </ItemGroup>
 
   <!-- Dobles de prueba compartidos con Sandbox.Agents.Tests, sin un proyecto de utilidades (design D6) -->
@@ -17,8 +19,6 @@
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\FakeChatClient.cs" Link="Fakes\FakeChatClient.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\LogEntry.cs" Link="Fakes\LogEntry.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\RecordingLoggerProvider.cs" Link="Fakes\RecordingLoggerProvider.cs" />
-    <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScriptedChatClient.cs" Link="Fakes\ScriptedChatClient.cs" />
-    <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScriptStep.cs" Link="Fakes\ScriptStep.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScopeStack.cs" Link="Fakes\ScopeStack.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScriptedToolApprover.cs" Link="Fakes\ScriptedToolApprover.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\SpanRecorder.cs" Link="Fakes\SpanRecorder.cs" />

@@ -14,6 +14,7 @@ using Sandbox.Agents.Tools;
 using Sandbox.Application.Sales;
 using Sandbox.Runner;
 using Sandbox.Runner.Agent;
+using Sandbox.Runner.Scenarios;
 
 namespace Sandbox.Scenarios.Tests.Runner;
 
@@ -224,6 +225,31 @@ public sealed class RunnerTelemetryTests
         ScriptStep.Reply("Pedido ORD-0001 creado"));
 
     /// <summary>Una ejecución del Runner con un modelo falso, su propio estado de ventas y registros en memoria.</summary>
+    [Fact]
+    public async Task RunAsync_WithTheScriptedModel_LabelsEveryChatSpanWithTheScriptedProviderAndModel()
+    {
+        // Sin sustituir el IChatClient: el Runner construye el modelo con guion con la decoración común
+        // (spec agent-scenarios, "Span etiquetado").
+        using var recorder = new SpanRecorder(AgentTelemetry.SourceName);
+        using var output = new StringWriter();
+        using var error = new StringWriter();
+        using var logs = new RecordingLoggerProvider();
+        var builder = RunnerHost.CreateBuilder(["--scenario", "happy-order", "--model", "scripted"], TemporarySecretsDirectory.Missing());
+        builder.Logging.ClearProviders();
+        builder.Logging.AddProvider(logs);
+
+        var exitCode = await RunnerHost.RunAsync(builder, output, error, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExitCodes.Success, exitCode);
+        var chatSpans = recorder.Named("chat");
+        Assert.Equal(3, chatSpans.Count);
+        Assert.All(chatSpans, span =>
+        {
+            Assert.Equal("scripted", span.GetTagItem("gen_ai.provider.name"));
+            Assert.Equal("scripted-model", span.GetTagItem("gen_ai.request.model"));
+        });
+    }
+
     private sealed class RunnerRun : IDisposable
     {
         private readonly StringWriter _output = new();

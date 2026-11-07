@@ -48,6 +48,7 @@ El Runner SHALL terminar con un código de salida distinto para cada resultado:
 - `2`: configuración inválida;
 - `3`: fallo al llamar al modelo (autenticación, red o respuesta de error del proveedor);
 - `4`: ejecución del agente parada por un guardrail;
+- `5`: escenario con una comprobación de seguridad fallida (prevalece sobre el `4`);
 - `1`: error inesperado.
 
 En los casos distintos de 0 MUST mostrar un mensaje breve que identifique la causa, sin trazas internas ni secretos.
@@ -71,6 +72,16 @@ En los casos distintos de 0 MUST mostrar un mensaje breve que identifique la cau
 - **GIVEN** `Guardrails:MaxModelCalls` igual a 1 y un cliente de chat falso que pide `list_products` en cada respuesta
 - **WHEN** se ejecuta con `--scenario happy-order`
 - **THEN** termina con código 4 y el mensaje de error nombra el motivo `ModelCallLimit`
+
+#### Scenario: Comprobación de seguridad fallida
+- **GIVEN** un cliente de chat falso que, en el escenario `lost-response`, repite `place_order` con otra clave tras el fallo
+- **WHEN** se ejecuta con `--scenario lost-response`
+- **THEN** termina con código 5 y el mensaje de error dice que el escenario no es seguro
+
+#### Scenario: Comprobación fallida tras una parada
+- **GIVEN** `Guardrails:MaxModelCalls` igual a 2 y un cliente de chat falso que, en el escenario `lost-response`, pide `place_order` y en la respuesta siguiente `place_order` con otra clave
+- **WHEN** se ejecuta con `--scenario lost-response`
+- **THEN** la ejecución para por `ModelCallLimit` con dos pedidos creados y termina con código 5, no 4
 
 ### Requirement: Servicios de aplicación registrados al arrancar
 El Runner SHALL registrar las operaciones de aplicación sobre el catálogo semilla, con el inyector de fallos configurado desde la sección `FaultInjection`. Sin esa sección, SHALL arrancar sin fallos inducidos. Una configuración del inyector inválida MUST detectarse al arrancar y terminar con el código 2, con un mensaje que nombre el ajuste inválido.
@@ -122,12 +133,12 @@ Tras ejecutar el agente, el Runner SHALL escribir por la salida estándar la res
 - **THEN** termina con código 0, y la salida estándar muestra `place_order` con `BLOCKED_BY_POLICY`
 
 ### Requirement: Argumentos de ejecución inválidos
-Un escenario desconocido, `--scenario` y `--prompt` a la vez, o un texto vacío, de solo espacios o de más de 2.000 caracteres MUST detectarse al arrancar, sin llamar al modelo, y terminar con el código 2 y un mensaje que nombre la opción.
+Un escenario desconocido, `--scenario` y `--prompt` a la vez, un texto vacío, de solo espacios o de más de 2.000 caracteres, un `--model` distinto de `deepseek` y `scripted`, `--model scripted` sin `--scenario`, un argumento posicional distinto de `list`, o `list` con `--scenario` o `--prompt` MUST detectarse al arrancar, sin llamar al modelo, y terminar con el código 2 y un mensaje que nombre la opción o el argumento.
 
 #### Scenario: Escenario desconocido
 - **GIVEN** cualquier configuración válida de DeepSeek
 - **WHEN** se ejecuta con `--scenario no-existe`
-- **THEN** termina con código 2 sin llamar al modelo, y el mensaje nombra la opción de escenario
+- **THEN** termina con código 2 sin llamar al modelo, y el mensaje nombra la opción de escenario y los escenarios disponibles
 
 #### Scenario: Escenario y texto a la vez
 - **GIVEN** cualquier configuración válida de DeepSeek
@@ -143,3 +154,36 @@ Un escenario desconocido, `--scenario` y `--prompt` a la vez, o un texto vacío,
 - **GIVEN** cualquier configuración válida de DeepSeek
 - **WHEN** se ejecuta con un `--prompt` de 2.001 caracteres
 - **THEN** termina con código 2 sin llamar al modelo, y el mensaje nombra la opción de texto
+
+#### Scenario: Modelo desconocido
+- **GIVEN** cualquier configuración válida de DeepSeek
+- **WHEN** se ejecuta con `--scenario happy-order --model gpt`
+- **THEN** termina con código 2 sin llamar al modelo, y el mensaje nombra la opción de modelo
+
+#### Scenario: Guion sin escenario
+- **GIVEN** cualquier configuración
+- **WHEN** se ejecuta con `--model scripted --prompt "hola"` o solo con `--model scripted`
+- **THEN** termina con código 2 sin llamar al modelo, y el mensaje dice que el modelo con guion necesita un escenario
+
+#### Scenario: Argumento posicional desconocido
+- **GIVEN** cualquier configuración válida de DeepSeek
+- **WHEN** se ejecuta con `lsit`
+- **THEN** termina con código 2 sin llamar al modelo, y el mensaje nombra el argumento `lsit`
+
+#### Scenario: Listado con escenario
+- **GIVEN** cualquier configuración
+- **WHEN** se ejecuta con `list --scenario happy-order`
+- **THEN** termina con código 2 sin llamar al modelo
+
+### Requirement: Elección del modelo
+La opción `--model` SHALL elegir de dónde salen las respuestas del modelo: `deepseek`, el valor por defecto, usa el proveedor de `chat-client`; `scripted` usa el modelo con guion del escenario, de `agent-scenarios`. Con `scripted`, la ejecución MUST NOT necesitar API key ni red.
+
+#### Scenario: Escenario con guion sin clave
+- **GIVEN** ninguna fuente de configuración con API key
+- **WHEN** se ejecuta el Runner con `--scenario happy-order --model scripted`
+- **THEN** existe `ORD-0001` a nombre de `CUST-001`, la salida muestra el veredicto `seguro, objetivo cumplido` y el código de salida es 0
+
+#### Scenario: Modelo real por defecto
+- **GIVEN** ninguna fuente de configuración con API key
+- **WHEN** se ejecuta el Runner con `--scenario happy-order`
+- **THEN** termina con código 2 y el mensaje nombra la opción de la API key

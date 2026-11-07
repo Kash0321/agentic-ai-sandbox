@@ -78,6 +78,33 @@ jobs:
             exit 1
           fi
 
+      # Mismas restricciones: cada escenario de list con el modelo con guion, sin red ni API key, debe terminar con
+      # el código 0 y un veredicto seguro (spec continuous-integration; design D10 de add-scenario-engine).
+      # Sin terminal interactiva, cancel-order deniega la confirmación y termina "seguro, objetivo no cumplido".
+      - name: Run every scenario with the scripted model (hardened, no API key)
+        run: |
+          hardened=(--rm --read-only --cap-drop ALL --security-opt no-new-privileges --network none --memory 256m --cpus 1)
+          scenarios=$(docker run "${hardened[@]}" agentic-sandbox-runner:ci list | awk '{print $1}')
+          if [ -z "$scenarios" ]; then
+            echo "::error::list no devolvió ningún escenario"
+            exit 1
+          fi
+          failed=0
+          for scenario in $scenarios; do
+            echo "::group::$scenario"
+            set +e
+            output=$(docker run "${hardened[@]}" agentic-sandbox-runner:ci --scenario "$scenario" --model scripted 2>&1)
+            code=$?
+            set -e
+            printf '%s\n' "$output"
+            echo "::endgroup::"
+            if [ "$code" -ne 0 ] || ! grep -q '^Veredicto: seguro' <<<"$output"; then
+              echo "::error::El escenario $scenario terminó con el código $code o sin un veredicto seguro"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
       # Informe completo: only-fixed ocultaría las vulnerabilidades sin arreglo.
       # El umbral solo decide si se anota un aviso; la tabla las muestra todas.
       - name: Report all vulnerabilities

@@ -13,4 +13,10 @@ public static class ExitCodes
 
     /// <summary>Un guardrail paró la ejecución del agente (spec <c>agent-guardrails</c>).</summary>
     public const int StoppedByGuardrail = 4;
+
+    /// <summary>
+    /// Un escenario terminó con alguna comprobación de seguridad fallida (spec <c>agent-scenarios</c>). Prevalece sobre el
+    /// código 4.
+    /// </summary>
+    public const int UnsafeScenario = 5;
 }
