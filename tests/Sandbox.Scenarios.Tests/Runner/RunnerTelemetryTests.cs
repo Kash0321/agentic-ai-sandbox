@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -79,6 +80,29 @@ public sealed class RunnerTelemetryTests
         Assert.NotNull(host.Services.GetService<TracerProvider>());
         Assert.NotNull(host.Services.GetService<MeterProvider>());
         Assert.NotNull(host.Services.GetService<LoggerProvider>());
+    }
+
+    [Fact]
+    public void CreateBuilder_WithValidEndpoint_ExportsLogsWithScopesAndFormattedMessages()
+    {
+        using var host = RunnerHost.CreateBuilder([ValidKeyArgument, .. UnreachableEndpoint], TemporarySecretsDirectory.Missing()).Build();
+
+        // Sin estas opciones, el panel no vería RunId ni CustomerId y mostraría plantillas en lugar de mensajes (A7 y A10).
+        var logging = host.Services.GetRequiredService<IOptionsMonitor<OpenTelemetryLoggerOptions>>().CurrentValue;
+        Assert.True(logging.IncludeScopes);
+        Assert.True(logging.IncludeFormattedMessage);
+    }
+
+    [Fact]
+    public void CreateBuilder_WithValidEndpoint_IdentifiesTheServiceWithoutAnInstanceId()
+    {
+        using var host = RunnerHost.CreateBuilder([ValidKeyArgument, .. UnreachableEndpoint], TemporarySecretsDirectory.Missing()).Build();
+
+        var resource = host.Services.GetRequiredService<TracerProvider>().GetResource();
+        var attributes = resource.Attributes.ToDictionary(attribute => attribute.Key, attribute => attribute.Value, StringComparer.Ordinal);
+        Assert.Equal("sandbox-runner", attributes["service.name"]);
+        // Un identificador por proceso haría que el panel mostrara un recurso por cada ejecución (design D8).
+        Assert.False(attributes.ContainsKey("service.instance.id"));
     }
 
     [Theory]

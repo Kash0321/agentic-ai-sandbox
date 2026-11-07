@@ -73,6 +73,24 @@ public sealed class AgentTelemetryTests
     }
 
     [Fact]
+    public async Task RunAsync_WhenCancelled_MarksTheRootSpanAsErrorWithTheCancellationType()
+    {
+        using var recorder = new SpanRecorder(AgentTelemetry.SourceName);
+        using var harness = new AgentHarness(new ScriptedChatClient(ScriptStep.Reply("Hola")), tracing: AgentTracing.WithoutContent);
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+
+        var exception = await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => harness.Agent.RunAsync(Request, cancellation.Token));
+
+        // Una cancelación (Ctrl+C) se ve en el panel como un error con el tipo de la excepción, igual que cualquier
+        // otra excepción que sale del agente (design D3).
+        var root = Assert.Single(recorder.Named(AgentTelemetry.InvokeAgentSpanName));
+        Assert.Equal(ActivityStatusCode.Error, root.Status);
+        Assert.Equal(exception.GetType().Name, root.StatusDescription);
+    }
+
+    [Fact]
     public async Task RunAsync_WithAnApprovalPause_KeepsEverySpanInOneTraceUnderTheRoot()
     {
         using var recorder = new SpanRecorder(AgentTelemetry.SourceName);

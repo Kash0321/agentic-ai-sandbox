@@ -85,6 +85,8 @@ En la factoría, `UseOpenTelemetry` se añade **antes** que `ProviderErrorTransl
 - **Parada por un guardrail**: estado `Error` con el nombre del motivo como descripción.
 - **Excepción**: si sale una excepción del agente (por ejemplo `ChatProviderException`), estado `Error` con el **nombre del tipo** como descripción. No se usa `AddException`, que copiaría el mensaje y la traza a un evento.
 
+Ajuste tras `/opsx:verify` (2026-11-07): una cancelación (`OperationCanceledException`, por ejemplo con Ctrl+C) también deja el raíz en `Error` con el nombre del tipo. Se mantiene a propósito, para no tratar ese tipo aparte, y lo fija un test.
+
 Cada decisión humana se envuelve en `approval <tool>`, con `gen_ai.tool.name` y `sandbox.approval.decision` (`Approved` o `Denied`). Dura lo que tarda el aprobador y nunca lleva los argumentos.
 
 Los atributos con prefijo `gen_ai.` siguen las convenciones semánticas. Los que no tienen equivalente usan el prefijo propio `sandbox.`, para no inventar nombres dentro de un espacio ajeno.
@@ -167,7 +169,7 @@ Ajuste del apply: el plan era que cada test abriera su propio span padre y filtr
 - **Runner**: el endpoint inválido da el código 2; el `TracerProvider` está registrado o no según el endpoint; la línea de aviso aparece o no; y el aviso de contenido.
 - **Aprendizaje** (fijan A2a, A2b, A3 y A4): sin raíz hay `orchestrate_tools` y dos trazas; con raíz no; el estado del span lleva el mensaje de la excepción; y con raíz `execute_tool` no lleva argumentos.
 
-El vaciado real (A8) y la vista en el panel se comprueban a mano con compose, como en el explore.
+El vaciado real (A8) y la vista en el panel se comprueban a mano con compose, como en el explore. Tras `/opsx:verify` se añadieron tests de la configuración de los registros exportados y del recurso (W1), y se comprobó con el receptor de prueba el envío de una ejecución parada por un guardrail, con código 4 (W2).
 
 ### D12. ADR 0006
 

@@ -91,7 +91,7 @@ invoke_agent sales-agent        sandbox.run.id, sandbox.stop_reason, sandbox.mod
 
 | Span | Lo abre | Atributos principales |
 |---|---|---|
-| `invoke_agent sales-agent` | `SalesAgent` | `gen_ai.operation.name`, `gen_ai.agent.name`, `sandbox.run.id` (el mismo `RunId` de la auditoría), y al cerrar `sandbox.stop_reason`, `sandbox.model_calls` y los tokens. En error si para un guardrail (descripción: el motivo) o sale una excepción (descripción: **solo el tipo**) |
+| `invoke_agent sales-agent` | `SalesAgent` | `gen_ai.operation.name`, `gen_ai.agent.name`, `sandbox.run.id` (el mismo `RunId` de la auditoría), y al cerrar `sandbox.stop_reason`, `sandbox.model_calls` y los tokens. En error si para un guardrail (descripción: el motivo) o sale una excepción (descripción: **solo el tipo**). Una cancelación (Ctrl+C) también sale como error, con `OperationCanceledException`: se decidió así para no tratar ese tipo aparte, y lo fija un test |
 | `chat <modelo>` | `OpenTelemetryChatClient` | Modelo pedido y modelo que respondió, servidor, tokens, nombres de las tools ofrecidas. Con captura de contenido, también los mensajes |
 | `execute_tool <tool>` | `FunctionInvokingChatClient` | Nombre, identificador de la petición y descripción de la tool; el proyecto añade `sandbox.tool.outcome` (`OK` o el código de error, también `BLOCKED_BY_POLICY`) |
 | `approval <tool>` | `SalesAgent` | Tool y decisión (`Approved` o `Denied`). **Nunca** los argumentos |
@@ -145,7 +145,7 @@ La variable estándar de las convenciones GenAI para capturar contenido (`OTEL_I
 
 ## Procesos one-shot: vaciado y el coste de un endpoint sin receptor
 
-El exportador envía por lotes en segundo plano. En un servicio que corre días eso no importa; en el Runner, que termina en segundos, lo pendiente se perdería si nadie lo envía al salir. No hace falta código: los proveedores de OpenTelemetry se liberan con el host, y al liberarse vacían lo pendiente. En el explore, el cierre tardó entre 230 y 530 ms con el panel escuchando. En el apply, una ejecución que terminó con el código 3 (clave rechazada) también envió sus trazas, métricas y registros.
+El exportador envía por lotes en segundo plano. En un servicio que corre días eso no importa; en el Runner, que termina en segundos, lo pendiente se perdería si nadie lo envía al salir. No hace falta código: los proveedores de OpenTelemetry se liberan con el host, y al liberarse vacían lo pendiente. En el explore, el cierre tardó entre 230 y 530 ms con el panel escuchando. En el apply, una ejecución que terminó con el código 3 (clave rechazada) también envió sus trazas, métricas y registros, y otra parada por un guardrail (código 4, `ModelCallLimit` tras una llamada) envió su span raíz con el motivo y el evento de auditoría `RunStopped`.
 
 La otra cara: **con el endpoint puesto y nadie escuchando, el Runner tarda unos 8,7 s más en salir en local, y unos 11,9 s en compose** (el nombre `dashboard` no resuelve), sin ningún mensaje. Por eso el endpoint está vacío por defecto y, cuando hay uno, el Runner dice al arrancar hacia dónde envía (solo esquema, host y puerto: una URL con credenciales embebidas no las deja en el registro).
 
@@ -185,7 +185,7 @@ Tres ejecuciones reales el 2026-11-07, con el panel 13.6.4 en compose:
 
 - **Oyente de spans en memoria** (`SpanRecorder`): un `ActivityListener` que muestrea todo lo de las fuentes indicadas y guarda los spans terminados. Es global al proceso, así que los tests que lo usan van en una colección sin paralelismo.
 - **No se filtra por un span padre del test**, como se pensó al principio: ese padre cambiaba lo que se observaba (ver "El nombre del span raíz importa").
-- **Runner**: se comprueba que sin endpoint no hay `TracerProvider` en el contenedor de servicios, que con uno inválido el código es 2, y que la salida es la misma con exportación y sin ella. Para que el vaciado contra un puerto sin receptor no alargue el test, se baja el tiempo de espera con `--OTEL_EXPORTER_OTLP_TIMEOUT=500`.
+- **Runner**: se comprueba que sin endpoint no hay `TracerProvider` en el contenedor de servicios; que con endpoint los registros se exportan con *scopes* y mensaje formateado y el recurso es `sandbox-runner` sin identificador de instancia (si se quita cualquiera de las dos cosas, el test falla: se probó); que con uno inválido el código es 2, y que la salida es la misma con exportación y sin ella. Para que el vaciado contra un puerto sin receptor no alargue el test, se baja el tiempo de espera con `--OTEL_EXPORTER_OTLP_TIMEOUT=500`.
 - **Lo que necesita un receptor real** (el vaciado y la vista en el panel) se comprueba a mano, con el panel en compose.
 
 ## Alternativas
