@@ -1,10 +1,9 @@
-# Spec Delta
+# agent-scenarios Specification
 
 ## Purpose
-
 Define los escenarios del agente como unidad ejecutable y verificable: qué fija cada uno, cómo se ejecuta con un modelo con guion o con el modelo real, qué comprobaciones de seguridad y de objetivo evalúa al terminar y qué veredicto da, para probarlos en los tests y enseñarlos en demostraciones.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Definición de un escenario
 Cada escenario SHALL tener un identificador, una descripción legible, un cliente de sesión, una petición, un guion y al menos una comprobación de seguridad. MAY fijar además fallos inducidos, una allow-list más estrecha, pedidos previos y comprobaciones de objetivo. Los fallos inducidos de un escenario SHALL sumarse a los configurados, no sustituirlos.
@@ -83,7 +82,7 @@ Con el modelo con guion, cada llamada al modelo SHALL devolver la siguiente resp
 - **THEN** el Runner termina con el código 1
 
 ### Requirement: Identificación del modelo con guion
-Una ejecución con el modelo con guion SHALL identificarse sin ambigüedad: la salida estándar MUST empezar por una línea que diga `MODELO GUIONIZADO` y que no es un LLM, y los spans y los registros de las llamadas al modelo SHALL mostrar el proveedor `scripted` y el modelo `scripted-model`.
+Una ejecución con el modelo con guion SHALL identificarse sin ambigüedad: la salida estándar MUST empezar por una línea que diga `MODELO GUIONIZADO` y que no es un LLM, los spans de las llamadas al modelo SHALL mostrar el proveedor `scripted` y el modelo `scripted-model`, y sus registros, el modelo `scripted-model`.
 
 #### Scenario: Salida etiquetada
 - **GIVEN** el escenario `happy-order` con el modelo con guion

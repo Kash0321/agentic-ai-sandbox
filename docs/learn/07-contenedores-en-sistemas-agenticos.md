@@ -168,7 +168,7 @@ En la fase 1 el `runner` tenía `network_mode: none`. La fase 2 lo quitó porque
 
 El saludo real funciona con todas estas restricciones (código 0, tarea 5.1 del change `add-deepseek-chat-client`). Con el sistema de ficheros de solo lectura, el cliente HTTP no necesitó escribir en disco, así que no hace falta un `tmpfs`. Los límites de memoria y CPU siguen siendo valores de partida: un saludo cabe de sobra, y la carga real llegará con el bucle de tools de la fase 4.
 
-La CI comprueba lo mismo en cada PR: el job `image` ejecuta la imagen final una vez con estas restricciones (`--read-only`, `--cap-drop ALL`, `no-new-privileges`, sin red, 256 MB y 1 CPU) y después la **escanea con Grype**. En la CI no hay clave, así que desde la fase 2 el paso **espera el código 2** (configuración inválida) y que la salida nombre `DeepSeek:ApiKey`. Así demuestra que la imagen arranca, lee la configuración y falla de forma controlada. Si el Runner saliera con cualquier otro código, el paso fallaría: lo comprobamos en local pasándole una clave inventada, que sin red da el código 3, y el paso falló como debía. Política y detalle en el [ADR 0002](../adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md) y en el [documento 9](09-integracion-continua-y-cadena-de-suministro.md).
+La CI comprueba lo mismo en cada PR: el job `image` ejecuta la imagen final una vez con estas restricciones (`--read-only`, `--cap-drop ALL`, `no-new-privileges`, sin red, 256 MB y 1 CPU) y después la **escanea con Grype**. En la CI no hay clave, así que desde la fase 2 el paso **espera el código 2** (configuración inválida) y que la salida nombre `DeepSeek:ApiKey`. Así demuestra que la imagen arranca, lee la configuración y falla de forma controlada. Desde la fase 6, un segundo paso ejecuta con las mismas restricciones cada escenario de `list` con el modelo guionizado (`--model scripted`), que no necesita clave ni red, y exige el código 0 y un veredicto seguro: la imagen publicada puede hacer las demostraciones ([documento 14](14-pruebas-y-evaluacion-de-sistemas-agenticos.md)). Si el Runner saliera con cualquier otro código, el paso fallaría: lo comprobamos en local pasándole una clave inventada, que sin red da el código 3, y el paso falló como debía. Política y detalle en el [ADR 0002](../adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md) y en el [documento 9](09-integracion-continua-y-cadena-de-suministro.md).
 
 ### Compose: el panel de trazas (perfil `dashboard`)
 
@@ -242,6 +242,7 @@ secrets:
 
 - en la fase 1 el `runner` no declaraba ningún secreto: declararlo sin usarlo habría dado una falsa sensación de control;
 - en la fase 2 la propia aplicación valida la clave al arrancar (`ValidateOnStart`) y falla con el código 2 si no la encuentra.
+- desde la fase 6, la clave solo se valida cuando hace falta: con la suborden `list` o con el modelo guionizado no se pide, y sin el fichero del secreto `docker compose run --rm runner list` y `docker compose run --rm runner --scenario happy-order --model scripted` terminan con el código 0 tras el aviso de compose (comprobado el 2026-11-07).
 
 **Comprobado en la fase 1**: con un fichero canario en `secrets/` y un `.env` con valores conocidos en la raíz del repo, ninguno de los dos llegó a la imagen de test ni a la final, ni por nombre ni por contenido. Además, el historial y las variables de entorno de la imagen final solo contienen lo que hereda de la imagen base.
 
@@ -250,7 +251,7 @@ secrets:
 Implementada con `add-ci-pipeline` ([`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)). En cada PR y en cada push a `main` hay tres jobs, que son checks obligatorios del ruleset de `main`:
 
 - `test`: `docker build --target test`, el mismo comando que en local;
-- `image`: imagen final, ejecución endurecida (sin clave, espera el código 2) y escaneo;
+- `image`: imagen final, ejecución endurecida (sin clave, espera el código 2), cada escenario con el modelo guionizado (espera el código 0 y un veredicto seguro) y escaneo;
 - `openspec`: validación estricta de las specs.
 
 Token de solo lectura, acciones fijadas por SHA (y exigido por el repositorio), sin secretos y con caché de capas de BuildKit en GitHub Actions.

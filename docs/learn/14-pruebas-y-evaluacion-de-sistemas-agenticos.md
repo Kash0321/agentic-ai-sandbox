@@ -219,7 +219,7 @@ Dos ejecuciones no son una medida. La tasa de veredictos con repeticiones queda 
 
 - Earl T. Barr, Mark Harman, Phil McMinn, Muzammil Shahbaz y Shin Yoo, "The Oracle Problem in Software Testing: A Survey", *IEEE Transactions on Software Engineering* 41(5), 2015, pp. 507-525, DOI 10.1109/TSE.2014.2372785. Texto en UCL Discovery: <https://discovery-pp.ucl.ac.uk/id/eprint/1471263/>. Consultado el 2026-11-07.
 - Bowen Alpern y Fred B. Schneider, "Defining Liveness", *Information Processing Letters* 21(4), 1985, pp. 181-185. Registro en Cornell eCommons: <https://ecommons.cornell.edu/entities/publication/2ed32f4f-cc5c-413b-ba16-5498641f1939>. Consultado el 2026-11-07.
-- Specs del proyecto: `openspec/specs/agent-scenarios/spec.md` (tras archivar el change) y `openspec/changes/add-scenario-engine/`.
+- Specs del proyecto: `openspec/specs/agent-scenarios/spec.md` y el change archivado en `openspec/changes/archive/2026-11-07-add-scenario-engine/` (diseño, experimentos y hallazgos).
 - ADR 0007, [escenarios autoverificables con modelo guionizado](../adr/0007-escenarios-autoverificables-con-modelo-guionizado.md).
 - Documento 13, [observabilidad de agentes](13-observabilidad-de-agentes.md): por qué el camino del modelo cambia entre ejecuciones.
 - Documento 05, [guardrails](05-guardrails.md): *fail closed* sin consola.

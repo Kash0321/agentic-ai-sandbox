@@ -62,34 +62,6 @@ Los textos que el modelo emita junto a sus peticiones de tools MUST NOT formar p
 - **WHEN** la ejecución termina por `ToolErrorLimit`
 - **THEN** el resultado indica 3 llamadas al modelo, 300 tokens de entrada y las tres invocaciones de `get_order` con `ORDER_NOT_FOUND`
 
-### Requirement: Escenarios con nombre
-El agente SHALL ofrecer estos escenarios reproducibles, cada uno con su cliente de sesión, su petición y, si procede, sus fallos inducidos:
-- `happy-order`: el cliente `CUST-001` pide dos tazas rojas, sin fallos inducidos;
-- `lost-response`: la misma petición, con la primera creación de pedido fallando después de ejecutarse (respuesta perdida);
-- `read-only`: la misma petición, solo con tools de lectura.
-
-Los fallos inducidos de un escenario SHALL sumarse a los configurados, no sustituirlos.
-
-#### Scenario: Escenario feliz
-- **GIVEN** el escenario `happy-order` y un modelo falso que pide `list_products`, después `place_order` con 2 unidades de `SKU-MUG-RED` y luego responde
-- **WHEN** se ejecuta el escenario
-- **THEN** existe `ORD-0001` en `Placed` a nombre de `CUST-001` y el disponible de `SKU-MUG-RED` pasa a 18
-
-#### Scenario: Respuesta perdida
-- **GIVEN** el escenario `lost-response` y un modelo falso que invoca `place_order` dos veces con la misma clave y las mismas líneas
-- **WHEN** se ejecuta el escenario
-- **THEN** la primera invocación devuelve `SERVICE_UNAVAILABLE` reintentable, la segunda devuelve `ORD-0001` con éxito, y no existe `ORD-0002`
-
-#### Scenario: Solo lectura
-- **GIVEN** el escenario `read-only` y un modelo falso que pide `list_products`, después `place_order` y luego responde
-- **WHEN** se ejecuta el escenario
-- **THEN** el modelo recibe solo `list_products`, `get_stock`, `get_customer` y `get_order`, `place_order` devuelve `BLOCKED_BY_POLICY`, no existe ningún pedido y el disponible de `SKU-MUG-RED` sigue en 20
-
-#### Scenario: El escenario no amplía la allow-list
-- **GIVEN** `Guardrails:AllowedTools` con solo `list_products`
-- **WHEN** se ejecuta el escenario `read-only`
-- **THEN** el modelo recibe solo `list_products`
-
 ### Requirement: Aviso de razonamiento con tools
 Si el razonamiento del modelo está activado, el agente SHALL registrar al empezar cada ejecución un aviso: el proveedor documenta que el razonamiento debe reenviarse en los turnos con tools, y esta solución no lo reenvía. La ejecución SHALL continuar.
 
@@ -102,24 +74,3 @@ Si el razonamiento del modelo está activado, el agente SHALL registrar al empez
 - **GIVEN** la configuración por defecto
 - **WHEN** se ejecuta el agente
 - **THEN** no se registra el aviso
-
-### Requirement: Pedidos previos de un escenario
-Un escenario SHALL poder fijar pedidos que existen antes de atender la petición, cada uno con su cliente y sus líneas. Esos pedidos SHALL crearse al arrancar, con las reglas de `order-operations` y sin pasar por el inyector de fallos, y MUST NOT contar como llamadas al modelo ni como tools invocadas.
-
-#### Scenario: Fallos inducidos intactos
-- **GIVEN** un escenario con un pedido previo y una regla del inyector que hace fallar la primera creación de pedido
-- **WHEN** arranca el escenario
-- **THEN** el pedido previo existe y la regla sigue sin consumirse
-
-### Requirement: Escenario de cancelación
-El agente SHALL ofrecer el escenario `cancel-order`: el cliente `CUST-001` ya tiene el pedido `ORD-0001` con dos tazas rojas y pide cancelarlo.
-
-#### Scenario: Cancelación aprobada
-- **GIVEN** el escenario `cancel-order`, un aprobador que aprueba y un modelo falso que pide `cancel_order` de `ORD-0001` y luego responde
-- **WHEN** se ejecuta el escenario
-- **THEN** `ORD-0001` queda en `Cancelled` y el disponible de `SKU-MUG-RED` vuelve a 20
-
-#### Scenario: Cancelación denegada
-- **GIVEN** el escenario `cancel-order`, un aprobador que deniega y un modelo falso que pide `cancel_order` de `ORD-0001` y luego responde
-- **WHEN** se ejecuta el escenario
-- **THEN** `ORD-0001` sigue en `Placed`, el disponible de `SKU-MUG-RED` sigue en 18 y el código de salida es 0

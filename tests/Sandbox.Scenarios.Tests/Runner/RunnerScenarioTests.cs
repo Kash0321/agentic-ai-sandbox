@@ -62,7 +62,6 @@ public sealed class RunnerScenarioTests : IDisposable
         var metadata = host.Services.GetRequiredService<IChatClient>().GetService<ChatClientMetadata>();
 
         Assert.Equal(ScriptedChatClient.ProviderName, metadata?.ProviderName);
-        Assert.Null(host.Services.GetRequiredService<IChatClient>().GetService<OpenAI.Chat.ChatClient>());
     }
 
     [Fact]

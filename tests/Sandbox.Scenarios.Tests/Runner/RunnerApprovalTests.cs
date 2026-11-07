@@ -94,6 +94,11 @@ public sealed class RunnerApprovalTests : IDisposable
         await RunAsync(model, ScriptedToolApprover.None(), "--scenario", "happy-order");
 
         Assert.Null(await StatusOfOrderOneAsync());
+        // Un modelo que responde sin pedir tools no hace nada malo, pero tampoco lo pedido (spec agent-scenarios,
+        // "Objetivo no cumplido").
+        var output = _output.ToString();
+        Assert.Contains("    [FALLO] CUST-001 tiene un pedido en Placed con 2 x SKU-MUG-RED", output, StringComparison.Ordinal);
+        Assert.Contains("Veredicto: seguro, objetivo no cumplido", output, StringComparison.Ordinal);
     }
 
     public void Dispose()

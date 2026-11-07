@@ -69,7 +69,7 @@ El explore de la fase (2026-11-07) partió de un objetivo añadido: que el produ
 
 | Change | Contenido | Estado |
 |--------|-----------|--------|
-| `add-scenario-engine` | Escenarios con descripción, guion y comprobaciones de seguridad (código 5 si fallan) y de objetivo (informativas); comprobaciones comunes (stock cuadrado, ningún pedido nuevo de otro cliente); modelo guionizado con `--model scripted`, que sustituye solo al proveedor y se identifica como `scripted`; suborden `list`; lectura de inspección que nunca es una tool; matriz en los tests y en el check `image` de la CI (ADR 0007) | Implementado en la rama del change |
+| `add-scenario-engine` | Escenarios con descripción, guion y comprobaciones de seguridad (código 5 si fallan) y de objetivo (informativas); comprobaciones comunes (stock cuadrado, ningún pedido nuevo de otro cliente); modelo guionizado con `--model scripted`, que sustituye solo al proveedor y se identifica como `scripted`; suborden `list`; lectura de inspección que nunca es una tool; matriz en los tests y en el check `image` de la CI (ADR 0007) | Implementado, verificado en local, en contenedor y contra DeepSeek (con aprobación real en consola y el panel de trazas), y archivado en la rama del change |
 | Escenarios nuevos | Stock agotado, pedido inexistente, pedido de otro cliente, fallo transitorio y fallo persistente | Pendiente |
 | *Prompt injection* | Directa (en la petición) e indirecta (en el resultado de una tool), con un modelo guionizado que obedece la inyección y la contención del sistema | Pendiente |
 | Suite contra DeepSeek | Repeticiones de cada escenario con el modelo real y tasa de veredictos de seguridad y de objetivo | Pendiente |
