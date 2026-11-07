@@ -184,7 +184,22 @@ docker compose run --build --rm runner
 
 - La clave llega al contenedor como **secreto de compose**: se monta en `/run/secrets/DeepSeek__ApiKey` y nunca está en la imagen, en `compose.yaml` ni en las variables de entorno del contenedor.
 - Sin `DEEPSEEK_API_KEY_FILE` se usa `secrets/deepseek_api_key`, que Git ignora. Si el fichero no existe, compose solo avisa y el Runner termina con el código 2.
-- El `runner` tiene red para llegar a la API de DeepSeek. Limitar la salida a ese único destino es de la fase 5.
+- El `runner` tiene red para llegar a la API de DeepSeek. Limitar la salida a ese único destino queda como ejercicio posterior.
+
+### Panel de trazas (opcional)
+
+El Runner puede exportar trazas, registros y métricas con OpenTelemetry a un **Aspire Dashboard** que arranca el perfil `dashboard` de compose. Sin `OTEL_EXPORTER_OTLP_ENDPOINT` no se exporta nada.
+
+```bash
+docker compose --profile dashboard up -d dashboard   # el panel, solo en 127.0.0.1
+docker compose logs dashboard                        # URL de acceso con el token
+OTEL_EXPORTER_OTLP_ENDPOINT=http://dashboard:18889 docker compose run --build --rm runner --scenario happy-order
+# o, en local:
+dotnet run --project src/Sandbox.Runner -- --scenario happy-order --OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+docker compose --profile dashboard down
+```
+
+Por defecto la telemetría no lleva el contenido de las conversaciones; se activa con `Telemetry:CaptureContent=true` (por ejemplo, `-e Telemetry__CaptureContent=true` en `docker compose run`). Detalle en [`docs/learn/13-observabilidad-de-agentes.md`](docs/learn/13-observabilidad-de-agentes.md) y en el [ADR 0006](docs/adr/0006-telemetria-opcional-y-sin-contenido.md).
 
 Detalle, mediciones y razones en [`docs/learn/07-contenedores-en-sistemas-agenticos.md`](docs/learn/07-contenedores-en-sistemas-agenticos.md).
 
@@ -254,7 +269,7 @@ agentic-ai-sandbox/
 ├── global.json                    # Fija el SDK de .NET 10
 ├── AgenticSandbox.slnx
 ├── Dockerfile                     # Multi-etapa: restore, build, test, publish, final
-├── compose.yaml                   # Servicio runner (y, en la fase 5, perfil opcional de trazas)
+├── compose.yaml                   # Servicio runner y panel de trazas opcional (perfil dashboard)
 ├── .dockerignore
 ├── .gitattributes                 # eol=lf para Dockerfile, scripts y YAML
 ├── .env.example                   # Plantilla sin secretos
@@ -287,7 +302,7 @@ agentic-ai-sandbox/
 
 ## Estado
 
-Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) y 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) completadas. En curso: **fase 5 · Guardrails**, en tres changes; el primero (`add-agent-guardrails`) trae la autorización por recurso, los límites de llamadas, errores y tokens, la allow-list y la auditoría, y el segundo (`add-tool-approval`), la confirmación humana de las acciones irreversibles. Sigue OpenTelemetry. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
+Fases 1 (**Setup de solución**), 2 (**Infraestructura base**: host, configuración, secretos y `IChatClient` hacia DeepSeek), 3 (**Servicios dummy**: dominio de ventas, commands y queries idempotentes, inyector de fallos) y 4 (**Pipeline agéntico**: tools, agente con `FunctionInvokingChatClient` y escenarios en el Runner) completadas. En curso: **fase 5 · Guardrails**, en tres changes; el primero (`add-agent-guardrails`) trae la autorización por recurso, los límites de llamadas, errores y tokens, la allow-list y la auditoría, el segundo (`add-tool-approval`), la confirmación humana de las acciones irreversibles, y el tercero (`add-agent-observability`), la observabilidad con OpenTelemetry y el Aspire Dashboard como perfil opcional de compose. Consulta [`docs/plan.md`](docs/plan.md) y [`AGENTS.md`](AGENTS.md).
 
 ## Licencia
 

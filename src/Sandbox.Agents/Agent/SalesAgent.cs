@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Sandbox.Agents.Approval;
 using Sandbox.Agents.Chat;
 using Sandbox.Agents.Guardrails;
+using Sandbox.Agents.Telemetry;
 using Sandbox.Agents.Tools;
 using Sandbox.Application.Auditing;
 
@@ -53,10 +54,56 @@ public sealed partial class SalesAgent(
                 nameof(request));
         }
 
-        // Correlación de la auditoría (design D4): los scopes siguen el flujo asíncrono, así que también los llevan los
-        // eventos que emite la aplicación sin saber nada de esta ejecución.
-        using var scope = RunScope(logger, Guid.NewGuid().ToString("N"), session.CustomerId);
+        var runId = Guid.NewGuid().ToString("N");
+        // Span raíz de la ejecución: envuelve todas las vueltas del bucle, también las pausas de confirmación (design D3
+        // de add-agent-observability).
+        using var span = StartRunSpan(runId);
+        // Correlación de la auditoría (design D4 de add-agent-guardrails): los scopes siguen el flujo asíncrono, así que
+        // también los llevan los eventos que emite la aplicación sin saber nada de esta ejecución.
+        using var scope = RunScope(logger, runId, session.CustomerId);
 
+        try
+        {
+            var result = await ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
+            RecordOutcome(span, result);
+            return result;
+        }
+        catch (Exception exception) when (span is not null)
+        {
+            // Solo el tipo: el mensaje de una excepción puede llevar datos que no deben llegar a la telemetría (D3).
+            span.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+            throw;
+        }
+    }
+
+    private static Activity? StartRunSpan(string runId)
+    {
+        var span = AgentTelemetry.Source.StartActivity(AgentTelemetry.InvokeAgentSpanName);
+        span?.SetTag(AgentTelemetry.OperationNameTag, "invoke_agent");
+        span?.SetTag(AgentTelemetry.AgentNameTag, AgentTelemetry.AgentName);
+        span?.SetTag(AgentTelemetry.RunIdTag, runId);
+        return span;
+    }
+
+    private static void RecordOutcome(Activity? span, AgentRunResult result)
+    {
+        if (span is null)
+        {
+            return;
+        }
+
+        span.SetTag(AgentTelemetry.StopReasonTag, result.StopReason.ToString());
+        span.SetTag(AgentTelemetry.ModelCallsTag, result.ModelCalls);
+        span.SetTag(AgentTelemetry.InputTokensTag, result.InputTokens);
+        span.SetTag(AgentTelemetry.OutputTokensTag, result.OutputTokens);
+        if (result.StopReason is not AgentStopReason.Completed)
+        {
+            span.SetStatus(ActivityStatusCode.Error, result.StopReason.ToString());
+        }
+    }
+
+    private async Task<AgentRunResult> ExecuteAsync(string request, CancellationToken cancellationToken)
+    {
         if (deepSeekOptions.Value.Thinking)
         {
             LogThinkingWithTools(logger);
@@ -201,12 +248,17 @@ public sealed partial class SalesAgent(
 
         // Copia de los argumentos: el aprobador ve exactamente lo que se ejecutará y no puede cambiarlo.
         var arguments = new Dictionary<string, object?>(call.Arguments ?? new Dictionary<string, object?>(), StringComparer.Ordinal);
-        var decision = await approver.DecideAsync(new ToolApprovalRequest(call.Name, arguments), cancellationToken).ConfigureAwait(false);
-        audit.ApprovalDecided(
-            call.Name,
-            decision.Approved ? ApprovalOutcome.Approved : ApprovalOutcome.Denied,
-            decision.Approver,
-            decision.Reason ?? NoReason);
+        ToolApprovalDecision decision;
+        // El span dura lo que tarda en decidir la persona y nunca lleva los argumentos (design D3 de
+        // add-agent-observability). El evento de auditoría queda dentro, enlazado con él.
+        using (var span = AgentTelemetry.Source.StartActivity($"approval {call.Name}"))
+        {
+            span?.SetTag(AgentTelemetry.ToolNameTag, call.Name);
+            decision = await approver.DecideAsync(new ToolApprovalRequest(call.Name, arguments), cancellationToken).ConfigureAwait(false);
+            var outcome = decision.Approved ? ApprovalOutcome.Approved : ApprovalOutcome.Denied;
+            span?.SetTag(AgentTelemetry.ApprovalDecisionTag, outcome.ToString());
+            audit.ApprovalDecided(call.Name, outcome, decision.Approver, decision.Reason ?? NoReason);
+        }
 
         if (decision.Approved)
         {
@@ -249,6 +301,7 @@ public sealed partial class SalesAgent(
         }
 
         var outcome = OutcomeOf(result);
+        TagToolSpan(outcome);
         run.Record(context.CallContent.CallId, new ToolInvocation(toolName, outcome));
         audit.ToolInvoked(toolName, decision, outcome, stopwatch.ElapsedMilliseconds);
 
@@ -300,6 +353,19 @@ public sealed partial class SalesAgent(
 
         ordered.AddRange(run.Recorded.Where(entry => !seen.Contains(entry.CallId)).Select(entry => entry.Invocation));
         return ordered;
+    }
+
+    /// <summary>
+    /// Añade el resultado al span <c>execute_tool</c> que abre la librería alrededor del <c>FunctionInvoker</c> (design D4
+    /// de add-agent-observability). Se comprueba la operación para no marcar otro span si la librería no abrió ninguno.
+    /// </summary>
+    private static void TagToolSpan(string outcome)
+    {
+        if (Activity.Current is { } span
+            && span.GetTagItem(AgentTelemetry.OperationNameTag) is "execute_tool")
+        {
+            span.SetTag(AgentTelemetry.ToolOutcomeTag, outcome);
+        }
     }
 
     private static JsonElement Serialize<T>(ToolResult<T> result) =>

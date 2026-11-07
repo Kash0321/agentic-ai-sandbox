@@ -78,7 +78,7 @@ Este change es el tercero y último de la **fase 5** de `docs/plan.md` (*Guardra
   - `DeepSeekChatClientFactory` (cliente de OpenTelemetry en el pipeline), `SalesAgent` (span raíz y de confirmación) y `RunnerHost`;
   - `compose.yaml`, `.github/dependabot.yml` y `Directory.Packages.props`;
   - `docs/learn/` (13 nuevo, 07, 05, 04, 09, glosario e índice), `docs/adr/0006-…`, `docs/plan.md` y `README.md`.
-- **Dependencias nuevas**, solo en `Sandbox.Runner`: `OpenTelemetry.Extensions.Hosting` y `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.20.1 (Apache-2.0; última estable en NuGet a 2026-11-06). Imagen nueva en compose: `mcr.microsoft.com/dotnet/aspire-dashboard:13.6.2` (última estable en MCR a 2026-11-06).
+- **Dependencias nuevas**, solo en `Sandbox.Runner`: `OpenTelemetry.Extensions.Hosting` y `OpenTelemetry.Exporter.OpenTelemetryProtocol` 1.20.1 (Apache-2.0; última estable en NuGet a 2026-11-06). Imagen nueva en compose: `mcr.microsoft.com/dotnet/aspire-dashboard:13.6.4` (última estable en MCR a 2026-11-07; el explore probó la 13.6.2).
 - **Comportamiento visible**: sin endpoint, nada cambia. Con endpoint, una línea de registro más al arrancar y unos cientos de milisegundos para vaciar la telemetría al terminar.
 - **Conceptos nuevos y dónde se documentan**:
   - documento 13: trazas, spans y contexto; logs correlacionados; métricas; OTLP y exportadores; convenciones semánticas GenAI (experimentales); datos sensibles en la telemetría; procesos *one-shot* y vaciado; el coste de un endpoint sin receptor;

@@ -45,6 +45,8 @@ Fuentes oficiales consultadas el mismo día: la referencia de `OpenTelemetryChat
 | D5b | Con el panel en marcha | Envío aceptado con un cierre de 230 a 530 ms. En la UI, el usuario vio los registros de las dos ejecuciones enlazados con su traza. La vista de trazas no se revisó a ojo |
 | D6 | Recurso en el panel | Cada proceso aparece como un recurso distinto (`spike-runner-fbc9e104`, `spike-runner-4cd995a6`), por el identificador de instancia que se genera por defecto |
 
+**Ajuste del apply (2026-11-07), tests de aprendizaje de `TelemetryLearningTests`**: lo que decide A2b no es que haya un span ambiente, sino su **nombre**. Bajo un span `invoke_agent sales-agent`, `FunctionInvokingChatClient` no abre `orchestrate_tools`, los `execute_tool` toman la fuente del span ambiente y no llevan argumentos aunque se capture contenido (A4). Bajo un span con otro nombre (`root`), aunque lleve `gen_ai.operation.name` = `invoke_agent`, sigue abriendo un `orchestrate_tools` por llamada, ahora dentro de la misma traza, y los `execute_tool` llevan los argumentos. No se ha mirado el código de la librería: es comportamiento observado, no documentado.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -76,7 +78,7 @@ En la factoría, `UseOpenTelemetry` se añade **antes** que `ProviderErrorTransl
 
 ### D3. Span raíz y span de confirmación en `SalesAgent`
 
-`RunAsync` abre `invoke_agent sales-agent` antes del *scope* de auditoría y lo cierra al final, así que envuelve todas las vueltas del bucle (A2b).
+`RunAsync` abre `invoke_agent sales-agent` antes del *scope* de auditoría y lo cierra al final, así que envuelve todas las vueltas del bucle (A2b). El nombre no es solo una convención: con otro, la librería añadiría un `orchestrate_tools` por vuelta (ajuste del apply en la tabla del explore).
 
 - **Atributos al abrir**: `gen_ai.operation.name` = `invoke_agent`, `gen_ai.agent.name` = `sales-agent` y `sandbox.run.id` (el mismo `RunId` del *scope*).
 - **Atributos al cerrar**: `sandbox.stop_reason`, `sandbox.model_calls`, `gen_ai.usage.input_tokens` y `gen_ai.usage.output_tokens`.
@@ -109,7 +111,7 @@ Rareza observada (A4): con span raíz, `execute_tool` no lleva `gen_ai.tool.call
 
 Alternativa descartada: registrar siempre el SDK sin exportador. Cuesta poco, pero "no hay nada registrado" es la garantía más simple de que sin endpoint no cambia nada, y se comprueba pidiendo el `TracerProvider` al contenedor.
 
-Por verificar en la implementación: que `UseOtlpExporter()` toma el endpoint de la configuración del host y no solo del entorno. Si no fuera así, se le pasa el endpoint validado de forma explícita, sin cambiar el contrato.
+Verificado en el apply (2026-11-07): con el endpoint y el protocolo pasados **por línea de comandos** (`--OTEL_EXPORTER_OTLP_ENDPOINT`, `--OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`), el exportador los usó: un receptor OTLP/HTTP de prueba recibió `/v1/logs`, `/v1/traces` y `/v1/metrics`. La ejecución, con una clave falsa contra DeepSeek, terminó con el código 3, y en los 2.164 bytes exportados no aparecían el fragmento de la clave que devuelve el 401 ni el texto del proveedor (sí `ChatProviderException` y `sandbox-runner`). No hizo falta el plan B.
 
 ### D7. Vaciado al terminar: lo hace la liberación del host
 
@@ -119,13 +121,13 @@ Los proveedores de OpenTelemetry se liberan con el contenedor de servicios, y al
 
 El servicio se llama `sandbox-runner` y no genera identificador de instancia (`autoGenerateServiceInstanceId: false`). Así, el panel no acumula un recurso por cada proceso (D6). Cada ejecución ya se distingue por su traza y su `RunId`.
 
-Por verificar en la implementación: que el panel agrupa entonces las ejecuciones en un solo recurso. Si no lo hiciera, se acepta el comportamiento por defecto y se documenta.
+Verificado en el apply (2026-11-07): el panel mostró como un único recurso `sandbox-runner` dos ejecuciones con compose y una con `dotnet run`.
 
 ### D9. Compose: perfil `dashboard`
 
 ```yaml
 dashboard:
-  image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6.2@sha256:e4220c55…
+  image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6.4@sha256:55a5a9fb…
   profiles: [dashboard]
   read_only: true
   tmpfs: [/tmp:size=32m]
@@ -146,6 +148,7 @@ runner:
 - **Puertos que no se publican**: el OTLP HTTP y el MCP.
 - **El token de la UI se mantiene**. El OTLP sin autenticación se acepta: solo se publica en `127.0.0.1` y, dentro de la red de compose, solo están el `runner` y el panel (D4).
 - **`mem_limit: 256m`**: deja margen sobre los unos 60 MiB observados (D3).
+- **Versión**: el explore probó la 13.6.2. Al fijarla en el apply (2026-11-07), la última estable en MCR era la 13.6.4, y es la que se usa; el endurecimiento se vuelve a comprobar con ella (tarea 6.3).
 
 Alternativa descartada por el usuario en el explore: un fichero override (`compose.dashboard.yaml`).
 
@@ -155,7 +158,9 @@ Se añade una entrada `docker-compose` en `/`, semanal y agrupada, como el resto
 
 ### D11. Tests sin exportador
 
-Un oyente de spans de prueba (`ActivityListener`) sobre la fuente `Sandbox.Agents` muestrea todo y guarda los spans terminados. Como los tests corren en paralelo y el oyente es global, cada test abre su propio span padre y filtra por su `TraceId`.
+Un oyente de spans de prueba (`ActivityListener`) sobre las fuentes indicadas muestrea todo y guarda los spans que terminan mientras está vivo. El oyente es global al proceso y los tests corren en paralelo. Por eso, los tests que lo usan van en una colección sin paralelismo (`TelemetrySerialGroup`), como ya hacen los del host con `RunnerHostSerialGroup`.
+
+Ajuste del apply: el plan era que cada test abriera su propio span padre y filtrara por su `TraceId`. Se descartó porque ese padre cambia lo que se observa: con un span activo, `FunctionInvokingChatClient` deja de abrir `orchestrate_tools` (A2b), y el test de aprendizaje de A2a sería imposible.
 
 - **Agente**: `AgentHarness` admite envolver el modelo con `UseOpenTelemetry` sobre la misma fuente, con y sin captura de contenido. Así se prueban los requisitos de trazas, contenido y confirmaciones.
 - **Factoría**: el 401 con fragmento de clave (D2) y la captura de contenido.
@@ -188,4 +193,4 @@ No hay datos ni contratos que migrar. Sin endpoint, el comportamiento es el actu
 
 ## Open Questions
 
-- ¿Agrupa el panel las ejecuciones en un solo recurso sin identificador de instancia (D8)? No cambia ni las specs ni las tareas: se acepta lo que haga y se documenta.
+- ~~¿Agrupa el panel las ejecuciones en un solo recurso sin identificador de instancia (D8)?~~ Resuelta en el apply: sí, las tres ejecuciones reales aparecen como un único `sandbox-runner`.

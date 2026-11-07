@@ -9,10 +9,12 @@ using Sandbox.Agents.Agent;
 using Sandbox.Agents.Approval;
 using Sandbox.Agents.Chat;
 using Sandbox.Agents.Guardrails;
+using Sandbox.Agents.Telemetry;
 using Sandbox.Agents.Tools;
 using Sandbox.Application;
 using Sandbox.Application.FaultInjection;
 using Sandbox.Runner.Agent;
+using Sandbox.Runner.Telemetry;
 
 namespace Sandbox.Runner;
 
@@ -59,9 +61,12 @@ public static partial class RunnerHost
             .PostConfigure(options => options.ApiKey = options.ApiKey?.Trim())
             .ValidateOnStart();
         builder.Services.AddSingleton<IValidateOptions<DeepSeekOptions>, DeepSeekOptionsValidator>();
+        builder.Services.AddOptions<TelemetryOptions>()
+            .Bind(builder.Configuration.GetSection(TelemetryOptions.SectionName));
         builder.Services.AddSingleton(services => DeepSeekChatClientFactory.Create(
             services.GetRequiredService<IOptions<DeepSeekOptions>>().Value,
-            services.GetRequiredService<ILoggerFactory>()));
+            services.GetRequiredService<ILoggerFactory>(),
+            telemetry: services.GetRequiredService<IOptions<TelemetryOptions>>().Value));
         builder.Services.AddSingleton<GreetingRunner>();
 
         var configuration = builder.Configuration;
@@ -82,6 +87,7 @@ public static partial class RunnerHost
             });
 
         AddAgent(builder.Services, CurrentScenario);
+        builder.AddRunnerTelemetry();
 
         return builder;
     }
@@ -140,6 +146,7 @@ public static partial class RunnerHost
         try
         {
             await host.StartAsync(cancellationToken);
+            ReportTelemetry(host.Services, logger);
             var exitCode = ExitCodes.Success;
             if (host.Services.GetRequiredService<IOptions<AgentOptions>>().Value.RunsAgent)
             {
@@ -189,6 +196,26 @@ public static partial class RunnerHost
         }
     }
 
+    /// <summary>
+    /// Dice hacia dónde se exporta la telemetría y si lleva contenido (design D5 y D6 de add-agent-observability): un
+    /// endpoint sin receptor alarga varios segundos la salida sin ningún otro aviso.
+    /// </summary>
+    private static void ReportTelemetry(IServiceProvider services, ILogger logger)
+    {
+        if (OtlpExportOptions.Parse(services.GetRequiredService<IOptions<OtlpExportOptions>>().Value.Endpoint) is not { } endpoint)
+        {
+            return;
+        }
+
+        // Se registra una sola vez por ejecución: el coste de describirlo no importa.
+        var destination = OtlpExportOptions.Describe(endpoint);
+        LogTelemetryEnabled(logger, destination);
+        if (services.GetRequiredService<IOptions<TelemetryOptions>>().Value.CaptureContent)
+        {
+            LogTelemetryWithContent(logger);
+        }
+    }
+
     private static async Task<int> ReportInvalidConfigurationAsync(
         TextWriter error,
         IEnumerable<OptionsValidationException> exceptions)
@@ -203,6 +230,14 @@ public static partial class RunnerHost
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Fallo al llamar al modelo: {Category}, sin respuesta HTTP")]
     private static partial void LogModelCallFailed(ILogger logger, ChatProviderErrorCategory category);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Telemetría OTLP activa hacia {Endpoint}")]
+    private static partial void LogTelemetryEnabled(ILogger logger, string endpoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Warning,
+        Message = "La telemetría incluye el contenido de las conversaciones (Telemetry:CaptureContent); no la actives con datos reales")]
+    private static partial void LogTelemetryWithContent(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Error inesperado en el Runner")]
     private static partial void LogUnexpectedError(ILogger logger, Exception exception);

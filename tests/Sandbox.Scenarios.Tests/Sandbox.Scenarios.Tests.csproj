@@ -21,6 +21,7 @@
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScriptStep.cs" Link="Fakes\ScriptStep.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScopeStack.cs" Link="Fakes\ScopeStack.cs" />
     <Compile Include="..\Sandbox.Agents.Tests\Fakes\ScriptedToolApprover.cs" Link="Fakes\ScriptedToolApprover.cs" />
+    <Compile Include="..\Sandbox.Agents.Tests\Fakes\SpanRecorder.cs" Link="Fakes\SpanRecorder.cs" />
   </ItemGroup>
 
   <ItemGroup>

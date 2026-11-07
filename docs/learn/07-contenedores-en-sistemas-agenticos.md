@@ -138,7 +138,7 @@ La imagen de la etapa `test` lleva el SDK y ronda **1,4 GB** en local; la final,
 
 ### Compose: el servicio `runner`
 
-El fichero se llama `compose.yaml`, el nombre canónico según la documentación de Docker; `docker-compose.yml` se admite solo por compatibilidad. Hoy define un único servicio:
+El fichero se llama `compose.yaml`, el nombre canónico según la documentación de Docker; `docker-compose.yml` se admite solo por compatibilidad. Define dos servicios: el `runner`, que se usa siempre, y el panel de trazas `dashboard`, que solo existe con el perfil `dashboard` (ver más abajo). La forma básica de uso es:
 
 ```bash
 # Bash; en PowerShell: $env:DEEPSEEK_API_KEY_FILE = "<ruta>"; docker compose run --build --rm runner
@@ -149,7 +149,7 @@ DEEPSEEK_API_KEY_FILE=<ruta al fichero con la clave> docker compose run --build 
 - **`--build`**: sin él, compose reutiliza la imagen `agentic-sandbox-runner:local` si ya existe, aunque el código haya cambiado. Con él, reconstruye antes de ejecutar (y gracias a la caché, si nada cambió, tarda poco).
 - **Qué hace hoy**: el saludo de comprobación de la fase 2. Envía un mensaje fijo a DeepSeek y muestra la respuesta, el modelo y los tokens. Los códigos de salida (0, 1, 2 y 3) están en el [documento 10](10-configuracion-y-secretos-en-net.md).
 - **`--scenario`** llegará con los escenarios de la fase 4.
-- **Panel de trazas** (perfil opcional `dashboard`, Aspire Dashboard autónomo): fase 5. Microsoft aclara que es una herramienta de desarrollo, no de monitorización en producción, y que por defecto exige un token de acceso.
+- **Panel de trazas** (perfil opcional `dashboard`, Aspire Dashboard autónomo): desde el change `add-agent-observability` de la fase 5. Se explica en "Compose: el panel de trazas", más abajo.
 
 ### Endurecimiento del `runner`
 
@@ -164,11 +164,44 @@ Todo está declarado en `compose.yaml` y comprobado con `docker inspect` sobre u
 | `mem_limit: 256m`, `cpus: 1.0` | Un fallo o un bucle no se come el equipo | `Memory=268435456`, `NanoCpus=1000000000` |
 | (sin `network_mode`, desde la fase 2) | Red por defecto de compose: puede salir a Internet | `NetworkMode=agentic-ai-sandbox_default` |
 
-En la fase 1 el `runner` tenía `network_mode: none`. La fase 2 lo quitó porque el Runner necesita llegar a `api.deepseek.com`. Ahora puede salir a **cualquier** destino; limitarlo a uno solo es de la fase 5 (ver "Contenedor y seguridad agéntica", más abajo).
+En la fase 1 el `runner` tenía `network_mode: none`. La fase 2 lo quitó porque el Runner necesita llegar a `api.deepseek.com`. Ahora puede salir a **cualquier** destino. Limitarlo a uno solo se pensó para la fase 5, pero no entró en sus tres changes y queda como ejercicio posterior (ver "Contenedor y seguridad agéntica", más abajo).
 
 El saludo real funciona con todas estas restricciones (código 0, tarea 5.1 del change `add-deepseek-chat-client`). Con el sistema de ficheros de solo lectura, el cliente HTTP no necesitó escribir en disco, así que no hace falta un `tmpfs`. Los límites de memoria y CPU siguen siendo valores de partida: un saludo cabe de sobra, y la carga real llegará con el bucle de tools de la fase 4.
 
 La CI comprueba lo mismo en cada PR: el job `image` ejecuta la imagen final una vez con estas restricciones (`--read-only`, `--cap-drop ALL`, `no-new-privileges`, sin red, 256 MB y 1 CPU) y después la **escanea con Grype**. En la CI no hay clave, así que desde la fase 2 el paso **espera el código 2** (configuración inválida) y que la salida nombre `DeepSeek:ApiKey`. Así demuestra que la imagen arranca, lee la configuración y falla de forma controlada. Si el Runner saliera con cualquier otro código, el paso fallaría: lo comprobamos en local pasándole una clave inventada, que sin red da el código 3, y el paso falló como debía. Política y detalle en el [ADR 0002](../adr/0002-checks-obligatorios-y-politica-de-vulnerabilidades.md) y en el [documento 9](09-integracion-continua-y-cadena-de-suministro.md).
+
+### Compose: el panel de trazas (perfil `dashboard`)
+
+Desde el change `add-agent-observability`, el Runner puede exportar trazas, registros y métricas por OTLP (qué se exporta y por qué está en el [documento 13](13-observabilidad-de-agentes.md)). Para verlos hay un segundo servicio, `dashboard`, con el **Aspire Dashboard autónomo**. Microsoft lo describe como una herramienta de desarrollo, no de monitorización en producción.
+
+```bash
+docker compose --profile dashboard up -d dashboard   # arranca el panel
+docker compose logs dashboard                        # URL de acceso con el token
+OTEL_EXPORTER_OTLP_ENDPOINT=http://dashboard:18889 docker compose run --build --rm runner --scenario happy-order
+# Desde dotnet run en local:
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 dotnet run --project src/Sandbox.Runner -- --scenario happy-order
+docker compose --profile dashboard down              # para el panel
+```
+
+- **Perfil `dashboard`**: un servicio con `profiles` solo se crea si el perfil está activo. `docker compose run --rm runner` sin el perfil no crea ningún contenedor del panel (comprobado con `docker compose config --services`, que lista solo `runner`).
+- **El `runner` no apunta al panel por defecto**: recibe `OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}`, que queda **vacía** si no se define en el anfitrión, y vacía significa "no exportar". No es un detalle cosmético. En el explore, con el endpoint puesto y el panel apagado, el Runner tardó **unos 11,9 s más en salir** (el nombre `dashboard` no resuelve) y no dijo nada. En local, contra un puerto sin nadie, fueron unos 8,7 s.
+- **Sin `depends_on`**: el `runner` no arranca el panel por su cuenta; se arranca a propósito.
+
+Endurecimiento del panel, comprobado con `docker inspect` sobre la imagen `13.6.4` (2026-11-07):
+
+| Opción en `compose.yaml` | Por qué | Comprobado en `docker inspect` |
+|---|---|---|
+| (imagen) usuario `1654` | La imagen de Microsoft ya no es root | `User=1654` |
+| `read_only: true` + `tmpfs: [/tmp:size=32m]` | Solo lectura, salvo un `/tmp` en memoria | `ReadonlyRootfs=true`, `Tmpfs={"/tmp":"size=32m"}` |
+| `cap_drop: [ALL]`, `no-new-privileges` | Igual que el `runner` | `CapDrop=[ALL]`, `SecurityOpt=[no-new-privileges:true]` |
+| `mem_limit: 256m`, `cpus: 1.0` | Se observaron unos 59 MiB en reposo | `Memory=268435456`, `NanoCpus=1000000000` |
+| `127.0.0.1:18888:18888`, `127.0.0.1:4317:18889` | UI y OTLP gRPC solo en el equipo local | `HostIp=127.0.0.1` en los dos puertos |
+
+- **El `tmpfs` no es opcional**. Con `read_only: true` a secas, el panel **no arranca**: falla con `IOException: Read-only file system` en `Directory.CreateTempSubdirectory`. Necesita crear un directorio temporal al iniciar. Un `tmpfs` es un sistema de ficheros en memoria: el contenedor puede escribir ahí, el resto sigue siendo de solo lectura y lo escrito desaparece al pararlo. El `runner` no lo necesita.
+- **Seguridad del panel**: la **UI** pide un token de acceso, que el panel genera en cada arranque y escribe en su registro. El **OTLP entrante no tiene autenticación**, y el propio panel lo avisa al arrancar ("OTLP server is unsecured"). Cualquier proceso que llegue al puerto puede mandarle telemetría. Por eso se publica solo en `127.0.0.1`; dentro de la red de compose solo están el `runner` y el panel.
+- **Puertos que no se publican**: el OTLP HTTP (18890) y un endpoint MCP (18891) que trae la imagen.
+- **Versión**: el explore probó la 13.6.2. Al fijarla en el apply ya había salido la 13.6.4, y se repitió la comprobación con ella. Es la regla del proyecto: última estable, verificada en el registro el día que se fija.
+- **Escaneo**: el panel **no pasa por Grype** en la CI. No es una imagen que construya el proyecto y solo se usa en desarrollo. Sus actualizaciones llegan con Dependabot (ecosistema `docker-compose`, [documento 9](09-integracion-continua-y-cadena-de-suministro.md)).
 
 ### Secretos
 
@@ -357,6 +390,9 @@ La columna del equipo local repite, para comparar, la tabla anterior:
 - Saltos de línea CRLF en scripts o `Dockerfile`: fallan en Linux (`/bin/sh^M`). Por eso la fase 1 incluye `.gitattributes` con `eol=lf`.
 - Montar el código desde una carpeta de Windows y quejarse de la lentitud.
 - Creer que el contenedor es una frontera de seguridad completa.
+- Dejar el endpoint OTLP del `runner` apuntando al panel "por si acaso": sin el panel, cada ejecución tarda unos 12 s más en salir y no avisa.
+- Poner `read_only: true` a una imagen ajena sin probarla: el panel de trazas no arranca sin un `tmpfs` en `/tmp`.
+- Publicar los puertos del panel en todas las interfaces (`18888:18888`): la UI tiene token, pero el OTLP no tiene autenticación.
 
 ## Referencias
 

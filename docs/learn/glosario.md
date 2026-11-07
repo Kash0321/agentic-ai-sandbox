@@ -170,3 +170,18 @@ Vocabulario del proyecto. Se amplía a medida que aparecen términos nuevos.
 | **Modelo falso con guion** | Doble de prueba de `IChatClient` que devuelve, turno a turno, llamadas a tools o texto programados; permite probar el bucle sin red |
 | **Test de aprendizaje** | Test que fija el comportamiento de una librería de terceros del que depende el diseño; si una versión nueva lo cambia, falla ahí y no en el código propio |
 | ***Switch mapping*** | Correspondencia entre un argumento corto de línea de comandos (`--scenario`) y una clave de configuración (`Agent:Scenario`) |
+| **Observabilidad** | Capacidad de entender qué hace un sistema por dentro a partir de lo que emite: trazas, registros y métricas |
+| **OpenTelemetry (OTel)** | Estándar abierto, con SDK para cada lenguaje, para generar y exportar trazas, métricas y registros |
+| **Traza** | Recorrido completo de una operación (aquí, una ejecución del agente): un árbol de spans que comparten identificador de traza |
+| **Span** | Unidad de trabajo con nombre, inicio, duración, atributos, estado y un padre; en .NET es una `Activity` |
+| **Span raíz** | Span sin padre que abre una traza; aquí, `invoke_agent sales-agent` |
+| **Contexto de traza** | Identificadores de traza y de span en curso; los registros emitidos dentro de un span lo llevan y así se enlazan con él |
+| **`ActivitySource`** | Tipo de .NET que crea spans (`Activity`); sin ningún oyente no crea nada y no cuesta |
+| **Recurso (OpenTelemetry)** | Quién emite la telemetría: nombre de servicio, versión, instancia; aquí, `sandbox-runner` sin identificador de instancia |
+| **Convenciones semánticas** | Nombres estándar de atributos y spans de OpenTelemetry; las de IA generativa (`gen_ai.*`) aún son experimentales |
+| **Exportador** | Componente que envía la telemetría a un destino (OTLP, consola, memoria) |
+| **Vaciado (*flush*)** | Envío de la telemetría pendiente antes de terminar; en un proceso *one-shot* lo hace la liberación del host |
+| **Muestreo (*sampling*)** | Decisión de qué trazas se guardan; aquí se guardan todas |
+| **Captura de contenido** | Incluir en la telemetría los mensajes, argumentos y resultados de una conversación con el modelo; aquí, opción desactivada por defecto |
+| **`tmpfs`** | Sistema de ficheros en memoria montado en un contenedor; permite escribir en una ruta concreta con el resto de solo lectura |
+| **Perfil (compose)** | Etiqueta que hace que un servicio solo se cree cuando se activa (`--profile`); aquí, el panel de trazas |

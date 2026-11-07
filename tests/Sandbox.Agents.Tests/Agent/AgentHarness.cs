@@ -1,9 +1,11 @@
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Sandbox.Agents.Agent;
 using Sandbox.Agents.Approval;
 using Sandbox.Agents.Chat;
 using Sandbox.Agents.Guardrails;
+using Sandbox.Agents.Telemetry;
 using Sandbox.Agents.Tests.Fakes;
 using Sandbox.Agents.Tests.Tools;
 using Sandbox.Agents.Tools;
@@ -17,19 +19,30 @@ internal sealed class AgentHarness : IDisposable
 {
     public const string SessionCustomerId = "CUST-001";
 
+    private readonly IChatClient? _traced;
+
     public AgentHarness(
         ScriptedChatClient model,
         bool thinking = false,
         ISalesQueries? queries = null,
         GuardrailOptions? guardrails = null,
         string customerId = SessionCustomerId,
-        IToolApprover? approver = null)
+        IToolApprover? approver = null,
+        AgentTracing tracing = AgentTracing.None)
     {
         Model = model;
         Approver = approver ?? ScriptedToolApprover.None();
         Tools = new ToolHarness(customerId, queries);
+        // Con trazas, el modelo va envuelto como en la factoría: cliente de OpenTelemetry con la fuente del agente.
+        _traced = tracing is AgentTracing.None
+            ? null
+            : model.AsBuilder()
+                .UseOpenTelemetry(
+                    sourceName: AgentTelemetry.SourceName,
+                    configure: client => client.EnableSensitiveData = tracing is AgentTracing.WithContent)
+                .Build();
         Agent = new SalesAgent(
-            model,
+            _traced ?? model,
             Tools.Tools,
             new SalesSession(customerId),
             Approver,
@@ -60,6 +73,7 @@ internal sealed class AgentHarness : IDisposable
 
     public void Dispose()
     {
+        _traced?.Dispose();
         Model.Dispose();
         Tools.Dispose();
     }
