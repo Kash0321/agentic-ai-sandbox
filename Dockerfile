@@ -2,7 +2,7 @@
 # Manda el digest; la etiqueta solo informa. Actualizar ambos a la vez.
 
 # restore: solo los ficheros que definen dependencias, para que un cambio de código no invalide esta capa
-FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:de4fe90a98845d75910b9769662465c84de1a934665c431279d1382b2bddc02b AS restore
+FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:212fe4cb74627d5adf9817a4088906ae3edff1bd853bb27565d4b46731efe61e AS restore
 WORKDIR /src
 COPY global.json Directory.Build.props Directory.Packages.props AgenticSandbox.slnx ./
 # Un COPY por proyecto: si falta uno, la restauración de la solución falla de forma explícita
@@ -30,7 +30,7 @@ FROM build AS publish
 RUN dotnet publish src/Sandbox.Runner/Sandbox.Runner.csproj --no-build -c Release -o /app
 
 # final: runtime chiseled (sin shell ni gestor de paquetes), usuario no root 1654 heredado de la base
-FROM mcr.microsoft.com/dotnet/runtime:10.0.14-noble-chiseled@sha256:3eb54ac708855f74b032de48e02437d15fb083b2aa593d49fdd512bb17f3e944 AS final
+FROM mcr.microsoft.com/dotnet/runtime:10.0.14-noble-chiseled@sha256:9ff26250358cef92587a087a7bef8d5655893385ff921ad9d5e924f20602fad4 AS final
 WORKDIR /app
 COPY --from=publish /app ./
 ENTRYPOINT ["dotnet", "Sandbox.Runner.dll"]
