@@ -1,6 +1,6 @@
 # 9. Integración continua y cadena de suministro
 
-> **Estado**: creado con el change `add-ci-pipeline` (fase 1). Describe la CI implementada, la configuración de seguridad del repositorio en GitHub y Dependabot. Tras el merge se añadió lo observado en `main`: la CI en el push, la primera ejecución de Dependabot y la primera medición. El primer PR de Dependabot sigue pendiente. **Verificado**: 2026-10-31 contra GitHub Docs, la documentación de Docker, los `action.yml` de las acciones y con ejecuciones reales en el PR #13. Lo que viene de fuentes secundarias o no se ha podido comprobar se marca **(no verificado)**.
+> **Estado**: creado con el change `add-ci-pipeline` (fase 1). Describe la CI implementada, la configuración de seguridad del repositorio en GitHub y Dependabot. Tras el merge se añadió lo observado en `main`: la CI en el push, la primera ejecución de Dependabot y la primera medición. Con la fase 5 llegaron el ecosistema `docker-compose` y el primer PR real de Dependabot (#21, imágenes base reconstruidas). **Verificado**: 2026-10-31 contra GitHub Docs, la documentación de Docker, los `action.yml` de las acciones y con ejecuciones reales en el PR #13; 2026-11-07 con las ejecuciones de Dependabot tras el merge del PR #20, el PR #21 y el registro de MCR. Lo que viene de fuentes secundarias o no se ha podido comprobar se marca **(no verificado)**.
 
 ## Qué es y por qué importa aquí
 
@@ -194,18 +194,53 @@ GitHub **no** valida `dependabot.yml` en el PR: no apareció ningún check para 
 | `github-actions` | Las cuatro acciones fijadas por SHA, identificadas **por la versión del comentario o de la etiqueta que apunta a ese SHA**: `actions/checkout 7.0.1`, `docker/setup-buildx-action 4.4.1`, `docker/build-push-action 7.4.0` y `anchore/scan-action 7.4.2` | "No update needed" |
 | `nuget` | `xunit.v3` 4.0.2 en los proyectos de tests, con la versión en `Directory.Packages.props` (gestión centralizada) | "No updatable version found" |
 
-Queda pendiente **cómo reescribe** las referencias cuando sí hay versión nueva: si cambia etiqueta y digest a la vez, si actualiza el SHA y el comentario, y si edita `Directory.Packages.props` en lugar de los `.csproj` **(no verificado; pendiente de su primer PR)**. Cuál de las dos cosas (el comentario o la etiqueta que apunta al SHA) usa para identificar la versión de una acción tampoco se puede saber por el registro.
+#### Primer PR real: la misma etiqueta, otra imagen (PR #21, 2026-11-07)
+
+El primer PR de Dependabot no trajo ninguna versión nueva. "Bump the docker group across 1 directory with 2 updates" cambiaba **solo el digest** de las dos imágenes base del `Dockerfile` y conservaba las etiquetas:
+
+```diff
+-FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:de4fe90…
++FROM mcr.microsoft.com/dotnet/sdk:10.0.403-noble@sha256:212fe4c…
+-FROM mcr.microsoft.com/dotnet/runtime:10.0.14-noble-chiseled@sha256:3eb54ac…
++FROM mcr.microsoft.com/dotnet/runtime:10.0.14-noble-chiseled@sha256:9ff2625…
+```
+
+Lo comprobado en el registro de MCR y en el `releases.json` de .NET antes de fusionarlo:
+
+| | Imagen anterior | Imagen nueva |
+|---|---|---|
+| SDK `10.0.403-noble` | creada el 2026-10-26 | creada el 2026-11-05 |
+| Runtime `10.0.14-noble-chiseled` | creada el 2026-10-24 | creada el 2026-11-05 |
+| .NET que contienen (variables `DOTNET_VERSION` y `DOTNET_SDK_VERSION`) | 10.0.14 / SDK 10.0.403 | **las mismas** |
+
+- Los digest nuevos eran exactamente los que MCR servía ese día para esas etiquetas.
+- La 10.0.14 seguía siendo la última versión de .NET 10 (del 25 de octubre).
+- Las cuatro capas de la imagen de runtime tenían digest nuevo.
+
+Es decir, Microsoft **reconstruyó las mismas versiones de .NET** y movió la etiqueta a la imagen nueva. Lo habitual es que lo haga para incluir actualizaciones de los paquetes del sistema base (Ubuntu Noble); **qué paquetes cambiaron no se comprobó** (habría que descargar y comparar las dos imágenes).
+
+Qué se aprende de este PR:
+
+- **Fijar por digest hace visibles estas reconstrucciones.** Con solo la etiqueta, la imagen habría cambiado en silencio en el siguiente build. Con el digest, el cambio llega como PR, pasa los checks (los 414 tests sobre el SDK nuevo y Grype sobre el runtime nuevo) y lo decide una persona.
+- **Dependabot conserva la etiqueta y reescribe solo el digest** cuando la etiqueta no cambia. Así se cumple el escenario "Actualización de una imagen base" de la spec `dependency-updates`. Queda **(no verificado)** qué hace cuando cambia la etiqueta (por ejemplo, con la 10.0.15).
+- **El periodo de espera no se aplica a MCR.** El PR llegó con el aviso "Cooldown could not be applied because no publication date was available from the registry". La ejecución de `docker_compose` dejó el mismo motivo en su registro ("No verified registry publication date source for mcr.microsoft.com"). Los 3 días de espera no protegen a las imágenes de Microsoft, y esa espera la sustituye la revisión del PR: aquí las imágenes tenían 2 días.
+- **Coste en la CI**: menor de lo esperado. Los checks del PR #21 tardaron 64 s (`test`) y 3 min 4 s (`image`), frente a los 54 s y 2 min 58 s del PR anterior. Descargar las bases nuevas en el runner apenas se nota. En el equipo de desarrollo sí ocupa: el SDK, unos 1,3 GB, se descarga de nuevo y la imagen anterior queda sin uso hasta un `docker image prune` (documento 07).
+- **No necesita change de OpenSpec**: no cambia comportamiento (`AGENTS.md`, sección 11).
+
+Siguen pendientes **(no verificado; a la espera de los PRs que los muestren)**: si al cambiar de versión reescribe etiqueta y digest a la vez, si actualiza el SHA y el comentario de una acción, y si edita `Directory.Packages.props` en lugar de los `.csproj`. Cuál de las dos cosas (el comentario o la etiqueta que apunta al SHA) usa para identificar la versión de una acción tampoco se puede saber por el registro.
 
 #### Cuarto ecosistema: `docker-compose` (fase 5)
 
 El change `add-agent-observability` añadió a `compose.yaml` el panel de trazas, una imagen que **no** está en ningún `Dockerfile`, así que el ecosistema `docker` no la ve. GitHub Docs lista un ecosistema propio, `docker-compose`, y lo describe en una sola frase: "Dependabot supports Docker Compose in a similar way to Docker" (consultado el 2026-11-07). La misma tabla indica que admite **actualizaciones de versión, pero no de seguridad**. Se configuró igual que los otros: en `/`, semanal y agrupado.
 
-Lo que la documentación no aclara, y queda **(no verificado)** hasta que llegue a `main`:
+La documentación no aclaraba qué nombres de fichero lee ni cómo trata la etiqueta con digest. **Observado en su primera ejecución, tras el merge del PR #20 (2026-11-07)**: terminó bien, junto con los otros tres ecosistemas, y su registro muestra que:
 
-- si lee el nombre canónico `compose.yaml` o solo `docker-compose.yml`;
-- si reconoce la imagen fijada como `etiqueta@digest` y la reescribe entera, como hace `docker` con los `Dockerfile`.
+- **lee `compose.yaml`**, el nombre canónico;
+- reconoce las dos imágenes del fichero: `dotnet/aspire-dashboard 13.6.4` y la imagen local del `runner` (`agentic-sandbox-runner`), que descarta ("No update needed for agentic-sandbox-runner local");
+- consulta MCR (lista de etiquetas, `latest` y el manifiesto de `13.6.4`), concluye "Latest version is 13.6.4" y no abre PR;
+- se salta el periodo de espera porque MCR no da fecha de publicación (ver el PR #21, arriba).
 
-Se comprobará con su primera ejecución tras el merge (en el workflow "Dependabot Updates") y con su primer PR. Mientras tanto, la imagen del panel se puede actualizar a mano. Que no haya actualizaciones de seguridad importa menos aquí: el panel es una herramienta de desarrollo que solo escucha en `127.0.0.1`.
+Sigue **(no verificado)** si, cuando salga una versión nueva del panel, reescribe etiqueta y digest juntos, como se espera por el comportamiento de `docker`. Que no haya actualizaciones de seguridad importa menos aquí: el panel es una herramienta de desarrollo que solo escucha en `127.0.0.1`.
 
 ### Configuración que no vive en ficheros
 
@@ -237,7 +272,7 @@ La primera ejecución (2026-10-31, run 41227837734) tardó 1 min 12 s. Tras camb
 ## Lo observado tras el merge
 
 - **Push a `main`**: la CI se ejecutó con el evento `push` sobre el commit del merge (run 41227735087), en verde.
-- **Dependabot**: ver su sección; reconoce los tres formatos de fijación.
+- **Dependabot**: ver su sección; reconoce los tres formatos de fijación. Su primer PR (#21, 2026-11-07) solo cambió los digest de las imágenes base, que Microsoft había reconstruido con la misma versión de .NET.
 - **Workflows borrados**: `gh workflow list --all` sigue mostrando `tmp-sha-check`, el workflow temporal de la prueba de SHA, aunque su fichero ya no existe. GitHub conserva el registro de los workflows que se han ejecutado alguna vez.
 
 ## Alternativas y trade-offs
@@ -262,6 +297,8 @@ La primera ejecución (2026-10-31, run 41227837734) tardó 1 min 12 s. Tras camb
 - Bloquear el build por cualquier CVE: sin arreglo publicado no hay salida, y el equipo aprende a ignorar el check.
 - Revertir una prueba negativa con `git revert` cuando el commit temporal incluía otros cambios legítimos (pasó aquí; se revirtió a mano).
 - En PowerShell, `git show <rev>:<fichero> | Set-Content -NoNewline` une todas las líneas en una. Para restaurar un fichero desde un commit, `git checkout <rev> -- <fichero>` (pasó aquí).
+- Creer que una etiqueta identifica una imagen: Microsoft la mueve cuando reconstruye la imagen (PR #21). Solo el digest es inmutable.
+- Fusionar un PR de Dependabot por estar en verde sin mirar su aviso: con MCR no hay periodo de espera, y la revisión es la única pausa.
 
 ## Referencias
 
